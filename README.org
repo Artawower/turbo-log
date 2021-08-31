@@ -1,0 +1,22 @@
+* Turbo log - fast log selected line or region
+This project inspired by similar package for [[https://marketplace.visualstudio.com/items?itemName=ChakrounAnas.turbo-console-log][vs-code]], and provided functionality for fast log message inserting under current line.
+It works for *js-mode, typescript-mode and python*.
+** Installation
+Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or another package manager:
+#+BEGIN_SRC emacs-lisp
+  (use-package turbo-log
+    :quelpa (turbo-log :fetcher github :repo "Artawower/turbo-log.el")
+    :ensure t
+    :defer 0.1
+    :config
+    (setq turbo-console--prefix "✰"))
+#+END_SRC
+** Plans
++ [X] Typescript support
++ [X] Javascript support
++ [ ] Python support
++ [ ] Golang support
++ [ ] Comment/uncomment all log messages that were made by package.
++ [ ] Remove all log messages that were made by package.
+  
+  
