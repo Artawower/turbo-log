@@ -75,6 +75,7 @@
     (turbo-log--remove-semicolon-at-end code)
     ))
 
+;; TODO: adapt for ecmascript
 (defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
   (if (turbo-log--is-return-line text)
@@ -117,6 +118,7 @@
     (insert turbo-log--message)
     ))
 
+;; TODO; adapt for python
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
   (if (turbo-log--is-return-line text)
@@ -148,7 +150,7 @@
 ;; TODO: remove prev-line-text, it will be useless after correct position detection.
 (defun turbo-log--python-print (current-line-number raw-selected-text formatted-selected-text prev-line-text)
   "Console log for python mode.
-  
+
 CURRENT-LINE-NUMBER - line number under cursor
 RAW-SELECTED-TEXT - raw text under region
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
@@ -176,12 +178,54 @@ PREV-LINE-TEXT - text from previous line"
     (insert turbo-log--message)
     ))
 
+;; Golang logger
+;; TODO: adapt for golang
+(defun turbo-log--golang-find-insert-pos (current-line-number text)
+  "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
+  (if (turbo-log--is-return-line text)
+      (- current-line-number 1)
+    current-line-number
+    )
+  )
+
+(defun turbo-log--golang-print (current-line-number raw-selected-text formatted-selected-text prev-line-text)
+  "Console log for python mode.
+
+CURRENT-LINE-NUMBER - line number under cursor
+RAW-SELECTED-TEXT - raw text under region
+FORMATTED-SELECTED-TEXT - formatted text without space at start position
+PREV-LINE-TEXT - text from previous line"
+
+(let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
+         ;; TODO: add forward/backward search for first symbol for correct tab indenting. Check direction of searching
+         ;; by special keywoard if/for/while/def (fo forward) return for backward
+         (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
+         (additional-spaces (make-string (+ insert-line-space-count 1) ? ))
+         (line-number-text (concat "[line " (format "%s" insert-line-number) "] "))
+         (normalized-code formatted-selected-text)
+         (turbo-log--message
+          (concat
+           additional-spaces
+           "fmt.Println(\""
+           line-number-text
+           turbo-log--prefix formatted-selected-text ": \", "
+           normalized-code ")\n"))
+         )
+
+
+
+    (goto-line insert-line-number)
+    (insert turbo-log--message)
+    ))
+
 (setq turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
                          (js-mode . turbo-log--ecmascript-print)
                          (ng2-ts-mode . turbo-log--ecmascript-print)
                          (web-mode . turbo-log--ecmascript-print)
                          (vue-mode . turbo-log--ecmascript-print)
-                         (python-mode . turbo-log--python-print)))
+                         (python-mode . turbo-log--python-print)
+                         (go-mode . turbo-log--golang-print))
+)
 
 (defun turbo-log--chose-mode ()
   "Chose logger by current major mode."

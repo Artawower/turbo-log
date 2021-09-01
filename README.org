@@ -13,8 +13,9 @@ Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or 
 ** Plans
 + [X] Typescript support
 + [X] Javascript support
-+ [ ] Python support
-+ [ ] Golang support
++ [X] Python support
++ [X] Golang support
++ [ ] Improve insert position finding
 + [ ] Comment/uncomment all log messages that were made by package.
 + [ ] Remove all log messages that were made by package.
   
