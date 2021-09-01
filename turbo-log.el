@@ -46,7 +46,7 @@
   (goto-line line-number)
   (thing-at-point 'line))
 
-(defun turbo-log--ecmascript-is-return (text)
+(defun turbo-log--is-return-line (text)
   "Check is TEXT container return keyword."
   (string-match "^[[:blank:]]*\\(return\\)[[:blank:]]+" text))
 
@@ -77,8 +77,7 @@
 
 (defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
-  (message "Return found: %s" (turbo-log--ecmascript-is-return text))
-  (if (turbo-log--ecmascript-is-return text)
+  (if (turbo-log--is-return-line text)
       (- current-line-number 1)
     current-line-number
     )
@@ -118,11 +117,70 @@
     (insert turbo-log--message)
     ))
 
+(defun turbo-log--python-find-insert-pos (current-line-number text)
+  "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
+  (if (turbo-log--is-return-line text)
+      (- current-line-number 1)
+    current-line-number
+    )
+  )
+
+(defun turbo-log--extract-python-args (code)
+  "Func for extract arguments from CODE. "
+  (let* ((code (replace-regexp-in-string "def[[:blank:]].+(" "" code))
+         (code (replace-regexp-in-string ").+" "" code))
+         (code (replace-regexp-in-string "[[:blank:]]?[:=]\\{1\\}\\([^,]+\\)" "" code))
+         )
+    code
+    ))
+
+(defun turbo-log--python-normalize-code (code)
+  "Normalize python CODE for correct printing."
+  (let* ((code (if (string-match "def[[:blank:]]" code) (turbo-log--extract-python-args code)
+                 ;; NOTE: if not a function
+                 (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code)))
+         ;; Remove type for typescript
+         )
+    code
+    ))
+
+;; Python logger
+;; TODO: remove prev-line-text, it will be useless after correct position detection.
+(defun turbo-log--python-print (current-line-number raw-selected-text formatted-selected-text prev-line-text)
+  "Console log for python mode.
+  
+CURRENT-LINE-NUMBER - line number under cursor
+RAW-SELECTED-TEXT - raw text under region
+FORMATTED-SELECTED-TEXT - formatted text without space at start position
+PREV-LINE-TEXT - text from previous line"
+
+  (let* ((insert-line-number (turbo-log--python-find-insert-pos current-line-number prev-line-text))
+         ;; TODO: add forward/backward search for first symbol for correct tab indenting. Check direction of searching
+         ;; by special keywoard if/for/while/def (fo forward) return for backward
+         (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text (- insert-line-number 1))))
+         (additional-spaces (make-string insert-line-space-count ? ))
+         (line-number-text (concat "[line " (format "%s" insert-line-number) "] "))
+         (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
+         (turbo-log--message
+          (concat
+           additional-spaces
+           "print('"
+           line-number-text
+           turbo-log--prefix formatted-selected-text ": ', "
+           normalized-code ")\n"))
+         )
+
+
+
+    (goto-line insert-line-number)
+    (insert turbo-log--message)
+    ))
 
 (setq turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
                          (js-mode . turbo-log--ecmascript-print)
                          (ng2-ts-mode . turbo-log--ecmascript-print)
-                         (org-mode . turbo-log--ecmascript-print)
+                         (web-mode . turbo-log--ecmascript-print)
+                         (vue-mode . turbo-log--ecmascript-print)
                          (python-mode . turbo-log--python-print)))
 
 (defun turbo-log--chose-mode ()
@@ -160,6 +218,7 @@
       )
     ))
 
+;; For test only
 (define-key global-map (kbd "C-s-l") 'turbo-log-print)
 
 ;;; _

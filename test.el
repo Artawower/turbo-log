@@ -4,11 +4,11 @@
 
 (ert-deftest test-ecmascript-is-return ()
   "Tests return statement."
-  (should (equal 0 (turbo-log--ecmascript-is-return "  return {
+  (should (equal 0 (turbo-log--is-return-line "  return {
      name: 'name'
    }")))
-  (should (equal nil (turbo-log--ecmascript-is-return "public isFuncReturnTrue(true) {")))
-  (should (equal nil (turbo-log--ecmascript-is-return "returnValueFromSomeFucn('value') {")))
+  (should (equal nil (turbo-log--is-return-line "public isFuncReturnTrue(true) {")))
+  (should (equal nil (turbo-log--is-return-line "returnValueFromSomeFucn('value') {")))
   )
 
 
@@ -82,4 +82,13 @@
                              (should (equal (turbo-log--ecmascript-find-insert-pos 4 "return someVar;") 3))) 4)
   )
 
+(ert-deftest test-python-correct-code-normalize ()
+  "Test python code normalization."
+  (should (equal "my_variable" (turbo-log--python-normalize-code "my_variable = 123;")))
+  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: int) -> str:")))
+  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: [int]) -> str:")))
+  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec, smile: int, foo: [int]) -> str:")))
+  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec = 1, smile: int, foo: [int]) -> str:")))
+  )
 ;;; test.el ends here
+
