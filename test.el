@@ -2,14 +2,15 @@
 
 (require 'turbo-log)
 
+;;; Code:
+
 (ert-deftest test-ecmascript-is-return ()
   "Tests return statement."
   (should (equal 0 (turbo-log--is-return-line "  return {
      name: 'name'
    }")))
   (should (equal nil (turbo-log--is-return-line "public isFuncReturnTrue(true) {")))
-  (should (equal nil (turbo-log--is-return-line "returnValueFromSomeFucn('value') {")))
-  )
+  (should (equal nil (turbo-log--is-return-line "returnValueFromSomeFucn('value') {"))))
 
 
 (ert-deftest test-ecmascript-code-normalize ()
@@ -31,20 +32,19 @@
   (should (equal 0 (turbo-log--calculate-space-count "")))
   (should (equal 1 (turbo-log--calculate-space-count "\t")))
   (should (equal 4 (turbo-log--calculate-space-count "\t\t \t")))
-  (should (equal 2 (turbo-log--calculate-space-count "\n\n")))
-  )
+  (should (equal 2 (turbo-log--calculate-space-count "\n\n"))))
+
 (ert-deftest test-semicolon-removed-from-end ()
-  (should (equal "const test = 12" (turbo-log--remove-semicolon-at-end "const test = 12;")))
-  )
+  (should (equal "const test = 12" (turbo-log--remove-semicolon-at-end "const test = 12;"))))
 
 (defun test-select-current-line ()
   "Help func for select current line."
   (move-beginning-of-line nil)
   (set-mark-command nil)
   (move-end-of-line nil)
-  (setq deactivate-mark nil)
-  )
+  (setq deactivate-mark nil))
 
+;; TODO: add optional code block like real sample.
 (defun test-inside-mock-buffer (test-func line-number)
   "Function for navigation to LINE-NUMBER and testing TEST-FUNC in new buffer."
   (switch-to-buffer-other-window "*buffer-for-test*")
@@ -62,16 +62,14 @@
   (goto-line line-number)
   (test-select-current-line)
   (funcall test-func)
-  (erase-buffer)
-  )
+  (erase-buffer))
 
 (ert-deftest test-correct-line-selection ()
   "Test if correct line selected for test inserting."
   (test-inside-mock-buffer (lambda ()
                              (should (equal (turbo-log--get-selected-text) "3 line"))) 3)
   (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--get-selected-text) "This is first line"))) 1)
-  )
+                             (should (equal (turbo-log--get-selected-text) "This is first line"))) 1))
 
 (ert-deftest test-ecmascript-correct-insert-position-selected ()
   "Test position for text-insertion."
@@ -79,8 +77,7 @@
                              (should (equal (turbo-log--ecmascript-find-insert-pos 3 "3 line") 3))) 3)
   ;; If return keyword should return previous line
   (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--ecmascript-find-insert-pos 4 "return someVar;") 3))) 4)
-  )
+                             (should (equal (turbo-log--ecmascript-find-insert-pos 4 "return someVar;") 3))) 4))
 
 (ert-deftest test-python-correct-code-normalize ()
   "Test python code normalization."
@@ -88,7 +85,6 @@
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: int) -> str:")))
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: [int]) -> str:")))
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec, smile: int, foo: [int]) -> str:")))
-  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec = 1, smile: int, foo: [int]) -> str:")))
-  )
+  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec = 1, smile: int, foo: [int]) -> str:"))))
 ;;; test.el ends here
 
