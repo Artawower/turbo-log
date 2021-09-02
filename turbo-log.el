@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.2.0
+;; Version: 0.3.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -37,6 +37,8 @@
   "Function for log in ecmascript.")
 (defvar turbo-log--golang-logger "fmt.Println"
   "Function for log in golang.")
+(defvar turbo-log--include-buffer-name t
+  "Include current buffer name to log message.")
 
 
 (defun turbo-log--calculate-space-count (text)
@@ -70,6 +72,16 @@
         (substring code 0 (- code-len 1))
       code)))
 
+(defun turbo-log--format-meta-info (line-number)
+  "Format meta information by provided config.
+Insert LINE-NUMBER and buffer name."
+
+  (let ((line-number (concat "[line " (format "%s" line-number) "]")))
+    (if turbo-log--include-buffer-name
+        (concat line-number "[" (buffer-name) "] " turbo-console--prefix " ")
+      (concat line-number " " turbo-console--prefix " "))))
+
+;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
   "Normalize CODE block for correct console.log func."
   (let* ((code (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))
@@ -106,15 +118,15 @@ PREV-LINE-TEXT - text from previous line"
   (let* ((insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
          (additional-spaces (make-string insert-line-space-count ? ))
-         (line-number-text (concat "[line " (format "%s" insert-line-number) "] "))
+         (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
          (turbo-log--message
           (concat
            additional-spaces
            turbo-log--ecmascript-logger
            "('"
-           line-number-text
-           turbo-log--prefix formatted-selected-text ": ', "
+           meta-info
+           formatted-selected-text ": ', "
            normalized-code ")\n")))
 
 
@@ -122,7 +134,7 @@ PREV-LINE-TEXT - text from previous line"
     (goto-line insert-line-number)
     (insert turbo-log--message)))
 
-;; TODO; adapt for python
+;; TODO: adapt for python
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
   (if (turbo-log--is-return-line text)
@@ -157,15 +169,15 @@ PREV-LINE-TEXT - text from previous line"
          ;; by special keywoard if/for/while/def (fo forward) return for backward
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text (- insert-line-number 1))))
          (additional-spaces (make-string insert-line-space-count ? ))
-         (line-number-text (concat "[line " (format "%s" insert-line-number) "] "))
+         (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
          (turbo-log--message
           (concat
            additional-spaces
            turbo-log--python-logger
            "('"
-           line-number-text
-           turbo-log--prefix formatted-selected-text ": ', "
+           meta-info
+           formatted-selected-text ": ', "
            normalized-code ")\n")))
 
 
@@ -193,15 +205,15 @@ PREV-LINE-TEXT - text from previous line"
          ;; by special keywoard if/for/while/def (fo forward) return for backward
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
          (additional-spaces (make-string (+ insert-line-space-count 1) ? ))
-         (line-number-text (concat "[line " (format "%s" insert-line-number) "] "))
+         (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code formatted-selected-text)
          (turbo-log--message
           (concat
            additional-spaces
            turbo-log--golang-logger
            "(\""
-           line-number-text
-           turbo-log--prefix formatted-selected-text ": \", "
+           meta-info
+           formatted-selected-text ": \", "
            normalized-code ")\n")))
 
 
