@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.0.1
+;; Version: 0.2.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -27,12 +27,17 @@
 
 ;;; Code:
 
-(defvar turbo-log--prefix
+(defvar turbo-log--prefix "TCL: "
   "Prefix string for every log messages.")
-(defvar turbo-log--modes
-  "List of all supported modes.")
 
-(setq turbo-log--prefix "TCL: ")
+
+(defvar turbo-log--python-logger "print"
+  "Function for log in python.")
+(defvar turbo-log--ecmascript-logger "console.log"
+  "Function for log in ecmascript.")
+(defvar turbo-log--golang-logger "fmt.Println"
+  "Function for log in golang.")
+
 
 (defun turbo-log--calculate-space-count (text)
   "Get space count at start of provided TEXT."
@@ -106,7 +111,8 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           "console.log('"
+           turbo-log--ecmascript-logger
+           "('"
            line-number-text
            turbo-log--prefix formatted-selected-text ": ', "
            normalized-code ")\n")))
@@ -139,11 +145,10 @@ PREV-LINE-TEXT - text from previous line"
 
 ;; Python logger
 ;; TODO: remove prev-line-text, it will be useless after correct position detection.
-(defun turbo-log--python-print (current-line-number raw-selected-text formatted-selected-text prev-line-text)
+(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text)
   "Printing for python mode.
 
 CURRENT-LINE-NUMBER - line number under cursor
-RAW-SELECTED-TEXT - raw text under region
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line"
 
@@ -157,7 +162,8 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           "print('"
+           turbo-log--python-logger
+           "('"
            line-number-text
            turbo-log--prefix formatted-selected-text ": ', "
            normalized-code ")\n")))
@@ -192,23 +198,23 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           "fmt.Println(\""
+           turbo-log--golang-logger
+           "(\""
            line-number-text
            turbo-log--prefix formatted-selected-text ": \", "
            normalized-code ")\n")))
 
 
-
     (goto-line insert-line-number)
     (insert turbo-log--message)))
 
-(setq turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
-                         (js-mode . turbo-log--ecmascript-print)
-                         (ng2-ts-mode . turbo-log--ecmascript-print)
-                         (web-mode . turbo-log--ecmascript-print)
-                         (vue-mode . turbo-log--ecmascript-print)
-                         (python-mode . turbo-log--python-print)
-                         (go-mode . turbo-log--golang-print)))
+(defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
+                           (js-mode . turbo-log--ecmascript-print)
+                           (ng2-ts-mode . turbo-log--ecmascript-print)
+                           (web-mode . turbo-log--ecmascript-print)
+                           (vue-mode . turbo-log--ecmascript-print)
+                           (python-mode . turbo-log--python-print)
+                           (go-mode . turbo-log--golang-print)))
 
 (defun turbo-log--chose-mode ()
   "Chose logger by current major mode."
