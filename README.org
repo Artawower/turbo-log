@@ -10,8 +10,11 @@ Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or 
     :quelpa (turbo-log :fetcher github :repo "Artawower/turbo-log.el")
     :bind (:map global-map ("C-s-l" . turbo-log-print))
     :config
-    (setq turbo-console--prefix "✰"))
+    (setq turbo-log--prefix "✰"))
 #+END_SRC
+** Customisation
+- =turbo-log-prefix= Special prefix, will put [line number][buffer-name?] <here>
+- =turbo-log--include-buffer-name= If true will put buffer name to log message
 ** Plans
 + [X] Typescript support
 + [X] Javascript support
@@ -20,5 +23,3 @@ Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or 
 + [ ] Improve insert position finding
 + [ ] Comment/uncomment all log messages that were made by package.
 + [ ] Remove all log messages that were made by package.
-  
-  

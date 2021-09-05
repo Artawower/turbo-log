@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.3.0
+;; Version: 0.4.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -62,6 +62,10 @@
   "Check is TEXT container \n."
   (string-match "\n" text))
 
+(defun turbo-log--replace-string (old new s)
+  "Replaces OLD with NEW in S."
+  (declare (pure t) (side-effect-free t))
+  (replace-regexp-in-string (regexp-quote old) new s t t))
 
 (defun turbo-log--remove-semicolon-at-end (code)
   "Remove semicolon from provided CODE block."
@@ -78,8 +82,8 @@ Insert LINE-NUMBER and buffer name."
 
   (let ((line-number (concat "[line " (format "%s" line-number) "]")))
     (if turbo-log--include-buffer-name
-        (concat line-number "[" (buffer-name) "] " turbo-console--prefix " ")
-      (concat line-number " " turbo-console--prefix " "))))
+        (concat line-number "[" (buffer-name) "] " turbo-log--prefix " ")
+      (concat line-number " " turbo-log--prefix " "))))
 
 ;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
@@ -255,6 +259,91 @@ PREV-LINE-TEXT - text from previous line"
          (logger (cdr logger-list)))
     (if logger
         (turbo-log--handle-logger logger))))
+
+(defun turbo-log--get-logger-regexps ()
+  "Get loggers on regexp format."
+  (concat "\\("
+          (turbo-log--replace-string "." "\\." turbo-log--golang-logger)
+          "\\|"
+          (turbo-log--replace-string "." "\\." turbo-log--ecmascript-logger)
+          "\\|"
+          turbo-log--python-logger
+          "\\)"))
+
+(defun turbo-log--build-log-regexp (with-comment)
+  "Build regexp for finding loggers made by turbo-log.
+Can check commented or uncommented log found by WITH-COMMENT arg."
+
+  ;; NOTE:
+  ;; "^[[:blank:]]*\\(fmt\\.Println\\|console\\.log\\|print\\)([\n[:blank:]'\"]*\\[line [0-9]+\\]"
+  (let* ((regexp (if with-comment "^\\/\\/[[:blank:]]*" "^[[:blank:]]*"))
+         (regexp (concat
+                  regexp
+                  (turbo-log--get-logger-regexps)
+                  "([\n[:blank:]'\\\"."
+                  (if with-comment "\\/" "")
+                  "]*"))
+         (regexp (concat regexp "\\[line [0-9]+\\]")))
+    regexp))
+
+(defun turbo-log--get-comment-string ()
+  "Get commet characters by current 'major-mode'."
+  (if (eq major-mode 'python-mode) "# " "// "))
+
+(defun turbo-log--comment-current-line ()
+  "Comment current line."
+  (beginning-of-line)
+  (insert (turbo-log--get-comment-string)))
+
+(defun turbo-log--uncomment-current-line ()
+  "Uncomment current line."
+  (end-of-line)
+  (search-backward (turbo-log--get-comment-string))
+  (replace-match (make-string (length (turbo-log--get-comment-string)) ? )))
+
+
+(defun turbo-log--toggle-comment-log-range (comment)
+  "Comment (if COMMENT t) or uncomment long comment string with multiple."
+  (let* ((cycle-limitter 0)
+         (start-line (progn (search-backward-regexp (turbo-log--get-logger-regexps) nil t)
+                            (line-number-at-pos)))
+         (end-line (progn (search-forward-regexp ");?$" nil t)
+                          (line-number-at-pos))))
+    (message "Start line %s" start-line)
+    (message "End line %s" end-line)
+    (while (not (eq cycle-limitter (+ (- end-line start-line) 1)))
+      (setq cycle-limitter (+ cycle-limitter 1))
+      (if comment
+          (turbo-log--comment-current-line)
+        (turbo-log--uncomment-current-line))
+      (forward-line -1))))
+
+;;;###autoload
+(defun turbo-log-comment-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+
+  (let ((current-line (line-number-at-pos)))
+    (goto-char (point-min))
+    (while (search-forward-regexp (turbo-log--build-log-regexp nil) nil t)
+      (turbo-log--toggle-comment-log-range t)
+      (search-forward ")" nil t)
+      (forward-line))
+    (goto-line current-line)))
+
+
+
+;;;###autoload
+(defun turbo-log-uncomment-all-logs ()
+  "Show all comments made by turbo-log."
+  (interactive)
+  (let ((current-line (line-number-at-pos)))
+    (goto-char (point-min))
+    (while (search-forward-regexp (turbo-log--build-log-regexp t) nil t)
+      (turbo-log--toggle-comment-log-range nil)
+      (search-forward ")" nil t)
+      (forward-line))
+    (goto-line current-line)))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
