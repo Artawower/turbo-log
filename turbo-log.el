@@ -155,7 +155,6 @@ PREV-LINE-TEXT - text from previous line"
 (defun turbo-log--python-normalize-code (code)
   "Normalize python CODE for correct printing."
   (let* ((code (if (string-match "def[[:blank:]]" code) (turbo-log--extract-python-args code)
-                 ;; NOTE: if not a function
                  (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))))
     code))
 
@@ -205,8 +204,6 @@ FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line"
 
   (let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
-         ;; TODO: add forward/backward search for first symbol for correct tab indenting. Check direction of searching
-         ;; by special keywoard if/for/while/def (fo forward) return for backward
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
          (additional-spaces (make-string (+ insert-line-space-count 1) ? ))
          (meta-info (turbo-log--format-meta-info current-line-number))
@@ -276,12 +273,11 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 
   ;; NOTE:
   ;; "^[[:blank:]]*\\(fmt\\.Println\\|console\\.log\\|print\\)([\n[:blank:]'\"]*\\[line [0-9]+\\]"
-  (let* ((commented-regexp "^[[:blank:]]*\\/\\/[[:blank:]]*" )
+  (let* ((commented-regexp (format "^[[:blank:]]*%s[[:blank:]]*" (turbo-log--get-comment-regexp)))
          (uncommented-regexp "^[[:blank:]]*")
          (regexp (cond ((eq log-type 'commented) commented-regexp)
                        ((eq log-type 'uncommented) uncommented-regexp)
                        (t (format "\\(%s\\|%s\\)" commented-regexp uncommented-regexp))))
-         ;; (regexp (if ))
          (regexp (concat
                   regexp
                   (turbo-log--get-logger-regexps)
@@ -294,6 +290,10 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 (defun turbo-log--get-comment-string ()
   "Get commet characters by current 'major-mode'."
   (if (eq major-mode 'python-mode) "# " "// "))
+
+(defun turbo-log--get-comment-regexp ()
+  "Get regexp for findings comment in current mode."
+  (if (eq major-mode 'python-mode) "#" "\\/\\/"))
 
 (defun turbo-log--comment-current-line ()
   "Comment current line."
