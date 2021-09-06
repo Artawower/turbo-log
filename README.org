@@ -6,12 +6,19 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 ** Installation
 Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or another package manager:
 #+BEGIN_SRC emacs-lisp
-  (use-package turbo-log
-    :quelpa (turbo-log :fetcher github :repo "Artawower/turbo-log.el")
-    :bind (:map global-map ("C-s-l" . turbo-log-print))
-    :config
-    (setq turbo-log--prefix "✰"))
-#+END_SRC
+(use-package turbo-log
+  :bind (
+         ("C-s-l" . turbo-log-print)
+         ("C-s-h" . turbo-log-comment-all-logs)
+         ("C-s-s" . turbo-log-uncomment-all-logs))
+  :config
+  (setq turbo-console--prefix "✰"))
+  #+END_SRC
+  /doom/
+  #+BEGIN_SRC emacs-lisp
+(package! turbo-log :recipe (:host github :repo "artawower/turbo-log"))
+  #+END_SRC
+
 ** Customisation
 - =turbo-log-prefix= Special prefix, will put [line number][buffer-name?] <here>
 - =turbo-log--include-buffer-name= If true will put buffer name to log message
