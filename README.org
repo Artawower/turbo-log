@@ -30,4 +30,4 @@ Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or 
 + [X] Golang support
 + [ ] Improve insert position finding
 + [X] Comment/uncomment all log messages that were made by package.
-+ [ ] Remove all log messages that were made by package.
++ [X] Remove all log messages that were made by package.
