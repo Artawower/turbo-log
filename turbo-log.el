@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.4.0
+;; Version: 0.5.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@
   (string-match "\n" text))
 
 (defun turbo-log--replace-string (old new s)
-  "Replaces OLD with NEW in S."
+  "Replace OLD with NEW in S."
   (declare (pure t) (side-effect-free t))
   (replace-regexp-in-string (regexp-quote old) new s t t))
 
@@ -270,18 +270,23 @@ PREV-LINE-TEXT - text from previous line"
           turbo-log--python-logger
           "\\)"))
 
-(defun turbo-log--build-log-regexp (with-comment)
+(defun turbo-log--build-log-regexp (log-type)
   "Build regexp for finding loggers made by turbo-log.
-Can check commented or uncommented log found by WITH-COMMENT arg."
+LOG-TYPE can be 'commented 'uncommented 'both."
 
   ;; NOTE:
   ;; "^[[:blank:]]*\\(fmt\\.Println\\|console\\.log\\|print\\)([\n[:blank:]'\"]*\\[line [0-9]+\\]"
-  (let* ((regexp (if with-comment "^\\/\\/[[:blank:]]*" "^[[:blank:]]*"))
+  (let* ((commented-regexp "^[[:blank:]]*\\/\\/[[:blank:]]*" )
+         (uncommented-regexp "^[[:blank:]]*")
+         (regexp (cond ((eq log-type 'commented) commented-regexp)
+                       ((eq log-type 'uncommented) uncommented-regexp)
+                       (t (format "\\(%s\\|%s\\)" commented-regexp uncommented-regexp))))
+         ;; (regexp (if ))
          (regexp (concat
                   regexp
                   (turbo-log--get-logger-regexps)
                   "([\n[:blank:]'\\\"."
-                  (if with-comment "\\/" "")
+                  (if (eq log-type 'commented) "\\/" "")
                   "]*"))
          (regexp (concat regexp "\\[line [0-9]+\\]")))
     regexp))
@@ -292,18 +297,18 @@ Can check commented or uncommented log found by WITH-COMMENT arg."
 
 (defun turbo-log--comment-current-line ()
   "Comment current line."
-  (beginning-of-line)
+  (beginning-of-line-text)
   (insert (turbo-log--get-comment-string)))
 
 (defun turbo-log--uncomment-current-line ()
   "Uncomment current line."
   (end-of-line)
   (search-backward (turbo-log--get-comment-string))
-  (replace-match (make-string (length (turbo-log--get-comment-string)) ? )))
+  (replace-match ""))
 
 
-(defun turbo-log--toggle-comment-log-range (comment)
-  "Comment (if COMMENT t) or uncomment long comment string with multiple."
+(defun turbo-log--handle-log-line (handle-line)
+  "Call HANDLE-LINE func for each comment line."
   (let* ((cycle-limitter 0)
          (start-line (progn (search-backward-regexp (turbo-log--get-logger-regexps) nil t)
                             (line-number-at-pos)))
@@ -313,9 +318,7 @@ Can check commented or uncommented log found by WITH-COMMENT arg."
     (message "End line %s" end-line)
     (while (not (eq cycle-limitter (+ (- end-line start-line) 1)))
       (setq cycle-limitter (+ cycle-limitter 1))
-      (if comment
-          (turbo-log--comment-current-line)
-        (turbo-log--uncomment-current-line))
+      (funcall handle-line)
       (forward-line -1))))
 
 ;;;###autoload
@@ -325,8 +328,8 @@ Can check commented or uncommented log found by WITH-COMMENT arg."
 
   (let ((current-line (line-number-at-pos)))
     (goto-char (point-min))
-    (while (search-forward-regexp (turbo-log--build-log-regexp nil) nil t)
-      (turbo-log--toggle-comment-log-range t)
+    (while (search-forward-regexp (turbo-log--build-log-regexp 'uncommented) nil t)
+      (turbo-log--handle-log-line 'turbo-log--comment-current-line)
       (search-forward ")" nil t)
       (forward-line))
     (goto-line current-line)))
@@ -339,10 +342,20 @@ Can check commented or uncommented log found by WITH-COMMENT arg."
   (interactive)
   (let ((current-line (line-number-at-pos)))
     (goto-char (point-min))
-    (while (search-forward-regexp (turbo-log--build-log-regexp t) nil t)
-      (turbo-log--toggle-comment-log-range nil)
+    (while (search-forward-regexp (turbo-log--build-log-regexp 'commented) nil t)
+      (turbo-log--handle-log-line 'turbo-log--uncomment-current-line)
       (search-forward ")" nil t)
       (forward-line))
+    (goto-line current-line)))
+
+;;;###autoload
+(defun turbo-log-delete-all-logs ()
+  "Delete all turb-log loggers."
+  (interactive)
+  (let ((current-line (line-number-at-pos)))
+    (goto-char (point-min))
+    (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
+      (turbo-log--handle-log-line 'kill-whole-line))
     (goto-line current-line)))
 
 (provide 'turbo-log)
