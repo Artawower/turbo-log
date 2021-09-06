@@ -6,11 +6,11 @@
 
 (ert-deftest test-ecmascript-is-return ()
   "Tests return statement."
-  (should (equal 0 (turbo-log--is-return-line "  return {
+  (should (equal 0 (turbo-log--return-line-p "  return {
      name: 'name'
    }")))
-  (should (equal nil (turbo-log--is-return-line "public isFuncReturnTrue(true) {")))
-  (should (equal nil (turbo-log--is-return-line "returnValueFromSomeFucn('value') {"))))
+  (should (equal nil (turbo-log--return-line-p "public isFuncReturnTrue(true) {")))
+  (should (equal nil (turbo-log--return-line-p "returnValueFromSomeFucn('value') {"))))
 
 
 (ert-deftest test-ecmascript-code-normalize ()

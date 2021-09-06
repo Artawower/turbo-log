@@ -54,7 +54,7 @@
   (goto-line line-number)
   (thing-at-point 'line))
 
-(defun turbo-log--is-return-line (text)
+(defun turbo-log--return-line-p (text)
   "Check is TEXT container return keyword."
   (string-match "^[[:blank:]]*\\(return\\)[[:blank:]]+" text))
 
@@ -97,7 +97,7 @@ Insert LINE-NUMBER and buffer name."
 ;; TODO: adapt for ecmascript
 (defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
-  (if (turbo-log--is-return-line text)
+  (if (turbo-log--return-line-p text)
       (- current-line-number 1)
     current-line-number))
 
@@ -141,7 +141,7 @@ PREV-LINE-TEXT - text from previous line"
 ;; TODO: adapt for python
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
-  (if (turbo-log--is-return-line text)
+  (if (turbo-log--return-line-p text)
       (- current-line-number 1)
     current-line-number))
 
@@ -192,7 +192,7 @@ PREV-LINE-TEXT - text from previous line"
 ;; TODO: adapt for golang
 (defun turbo-log--golang-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER and provided TEXT."
-  (if (turbo-log--is-return-line text)
+  (if (turbo-log--return-line-p text)
       (- current-line-number 1)
     current-line-number))
 
