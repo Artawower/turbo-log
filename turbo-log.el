@@ -27,6 +27,8 @@
 
 ;;; Code:
 
+(require 'subr-x)
+
 (defvar turbo-log--prefix "TCL: "
   "Prefix string for every log messages.")
 
