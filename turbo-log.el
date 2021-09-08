@@ -319,14 +319,12 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 (defun turbo-log-comment-all-logs ()
   "Hide all log messages made by turbo-log."
   (interactive)
-
-  (let ((current-line (line-number-at-pos)))
+  (save-excursion
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'uncommented) nil t)
       (turbo-log--handle-log-line 'turbo-log--comment-current-line)
       (search-forward ")" nil t)
-      (forward-line))
-    (goto-line current-line)))
+      (forward-line))))
 
 
 
@@ -334,23 +332,21 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 (defun turbo-log-uncomment-all-logs ()
   "Show all comments made by turbo-log."
   (interactive)
-  (let ((current-line (line-number-at-pos)))
+  (save-excursion
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'commented) nil t)
       (turbo-log--handle-log-line 'turbo-log--uncomment-current-line)
       (search-forward ")" nil t)
-      (forward-line))
-    (goto-line current-line)))
+      (forward-line))))
 
 ;;;###autoload
 (defun turbo-log-delete-all-logs ()
   "Delete all turb-log loggers."
   (interactive)
-  (let ((current-line (line-number-at-pos)))
+  (save-excursion
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
-      (turbo-log--handle-log-line 'kill-whole-line))
-    (goto-line current-line)))
+      (turbo-log--handle-log-line 'kill-whole-line))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
