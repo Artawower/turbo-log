@@ -1,3 +1,5 @@
+[[https://github.com/Artawower/turbo-log/actions][https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg]]
+
 * Turbo log - fast logging selected line or region
 This project inspired by similar package for [[https://marketplace.visualstudio.com/items?itemName=ChakrounAnas.turbo-console-log][vs-code - turbo-console-log]], and provided functionality for fast log message inserting under current line.
 It works for *js-mode, typescript-mode, go-mode and python*.
