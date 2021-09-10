@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - master
-      - 'feature/*'
+      - "feature/*"
 
 jobs:
   check:
@@ -23,11 +23,15 @@ jobs:
           - emacs_version: snapshot
             ignore_warnings: false
     steps:
-    - uses: actions/checkout@v2
-    - uses: purcell/setup-emacs@master
-      with:
-        version: ${{ matrix.emacs_version }}
-    - uses: leotaku/elisp-check@master
-      with:
-        file: turbo-log.el
-        ignore_warnings: ${{ matrix.ignore_warnings }}
+      - uses: actions/checkout@v2
+      - uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - uses: leotaku/elisp-check@master
+        with:
+          file: turbo-log.el
+          ignore_warnings: ${{ matrix.ignore_warnings }}
+      - uses: leotaku/elisp-check@master
+        with:
+          check: ert
+          file: test.el

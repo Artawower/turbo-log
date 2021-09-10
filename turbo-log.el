@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.5.0
+;; Version: 0.6.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -95,12 +95,20 @@ Insert LINE-NUMBER and buffer name."
          ;; Remove type for typescript
          (code (replace-regexp-in-string "\\:[[:blank:]].+" "" code)))
     (turbo-log--remove-semicolon-at-end code)))
-
 (defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
-  (if (turbo-log--return-line-p text)
-      (- current-line-number 1)
-    current-line-number))
+  (message text)
+  (cond ((turbo-log--return-line-p text) (- current-line-number 1))
+        ((string-match "{\\|;$" text) current-line-number)
+        (t (let ((brackets-list '())
+                  (current-char (char-after)))
+             ;;NOTE: Symbols: 59 ; 123 {
+              (while (and (not (eobp)) (not (member current-char '(59 123))))
+                (forward-char)
+                (setq current-char (char-after)))
+              (+ (line-number-at-pos) 1))
+            )
+        ))
 
 (defun turbo-log--get-selected-text ()
   "Return selected text."
@@ -132,7 +140,7 @@ PREV-LINE-TEXT - text from previous line"
            "('"
            meta-info
            formatted-selected-text ": ', "
-           normalized-code ")\n")))
+           normalized-code ");\n")))
 
 
 

@@ -50,7 +50,7 @@
   (switch-to-buffer-other-window "*buffer-for-test*")
   (setq test-lines '("This is first line"
                      "second line"
-                     "3 line"
+                     "3 line);"
                      "return someVar;"
                      "next line"
                      "and another"))
@@ -67,14 +67,14 @@
 (ert-deftest test-correct-line-selection ()
   "Test if correct line selected for test inserting."
   (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--get-selected-text) "3 line"))) 3)
+                             (should (equal (turbo-log--get-selected-text) "3 line);"))) 3)
   (test-inside-mock-buffer (lambda ()
                              (should (equal (turbo-log--get-selected-text) "This is first line"))) 1))
 
 (ert-deftest test-ecmascript-correct-insert-position-selected ()
   "Test position for text-insertion."
   (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--ecmascript-find-insert-pos 3 "3 line") 3))) 3)
+                             (should (equal (turbo-log--ecmascript-find-insert-pos 3 "3 line);") 3))) 3)
   ;; If return keyword should return previous line
   (test-inside-mock-buffer (lambda ()
                              (should (equal (turbo-log--ecmascript-find-insert-pos 4 "return someVar;") 3))) 4))
