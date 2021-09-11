@@ -86,5 +86,21 @@
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: [int]) -> str:")))
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec, smile: int, foo: [int]) -> str:")))
   (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec = 1, smile: int, foo: [int]) -> str:"))))
-;;; test.el ends here
 
+(ert-deftest test-goto-line-work ()
+  "Test turbo-log--goto-line workds properly."
+  (test-inside-mock-buffer (lambda ()
+                             (turbo-log--goto-line 4)
+                             (should (equal (line-number-at-pos) 4))
+                             (turbo-log--goto-line 1)
+                             (should (equal (line-number-at-pos) 1))
+                             (turbo-log--goto-line 0)
+                             (should (equal (line-number-at-pos) 1))
+                             (turbo-log--goto-line -10)
+                             (should (equal (line-number-at-pos) 1))
+                             (turbo-log--goto-line 23)
+                             ;; 7 is max line
+                             (should (equal (line-number-at-pos) 7))) 0)
+  )
+
+;;; test.el ends here

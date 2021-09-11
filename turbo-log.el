@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.6.0
+;; Version: 0.6.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -42,7 +42,6 @@
 (defvar turbo-log--include-buffer-name t
   "Include current buffer name to log message.")
 
-
 (defun turbo-log--calculate-space-count (text)
   "Get space count at start of provided TEXT."
   (let* ((original-text-length (length text))
@@ -53,8 +52,12 @@
 
 (defun turbo-log--get-line-text (line-number)
   "Get text from LINE-NUMBER under point."
-  (goto-line line-number)
+  (turbo-log--goto-line line-number)
   (thing-at-point 'line))
+
+(defun turbo-log--goto-line (line-number)
+  "Non inetractive implementation of 'turbo-log--goto-line' by provided LINE-NUMBER."
+  (forward-line (- line-number (line-number-at-pos))))
 
 (defun turbo-log--return-line-p (text)
   "Check is TEXT container return keyword."
@@ -100,8 +103,8 @@ Insert LINE-NUMBER and buffer name."
   (message text)
   (cond ((turbo-log--return-line-p text) (- current-line-number 1))
         ((string-match "{\\|;$" text) current-line-number)
-        (t (let ((brackets-list '())
-                  (current-char (char-after)))
+        ;; TODO: add brackets stack for finding correct brackets sequence
+        (t (let ((current-char (char-after)))
              ;;NOTE: Symbols: 59 ; 123 {
               (while (and (not (eobp)) (not (member current-char '(59 123))))
                 (forward-char)
@@ -144,7 +147,7 @@ PREV-LINE-TEXT - text from previous line"
 
 
 
-    (goto-line insert-line-number)
+    (turbo-log--goto-line insert-line-number)
     (insert turbo-log--message)))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
@@ -190,7 +193,7 @@ PREV-LINE-TEXT - text from previous line"
 
 
 
-    (goto-line insert-line-number)
+    (turbo-log--goto-line insert-line-number)
     (insert turbo-log--message)))
 
 ;; Golang logger
@@ -222,7 +225,7 @@ PREV-LINE-TEXT - text from previous line"
            normalized-code ")\n")))
 
 
-    (goto-line insert-line-number)
+    (turbo-log--goto-line insert-line-number)
     (insert turbo-log--message)))
 
 (defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
