@@ -24,6 +24,7 @@
 
 ;; This package provides functionality for fast line/region logging with additional meta information
 ;; like line number, buffer name, and some info from syntax table.
+;; It works with golang, python, js and typescript languages.
 
 ;;; Code:
 
@@ -56,7 +57,7 @@
   (thing-at-point 'line))
 
 (defun turbo-log--goto-line (line-number)
-  "Non inetractive implementation of 'turbo-log--goto-line' by provided LINE-NUMBER."
+  "Non interactive implementation of 'turbo-log--goto-line' by provided LINE-NUMBER."
   (forward-line (- line-number (line-number-at-pos))))
 
 (defun turbo-log--return-line-p (text)
@@ -106,12 +107,10 @@ Insert LINE-NUMBER and buffer name."
         ;; TODO: add brackets stack for finding correct brackets sequence
         (t (let ((current-char (char-after)))
              ;;NOTE: Symbols: 59 ; 123 {
-              (while (and (not (eobp)) (not (member current-char '(59 123))))
-                (forward-char)
-                (setq current-char (char-after)))
-              (+ (line-number-at-pos) 1))
-            )
-        ))
+             (while (and (not (eobp)) (not (member current-char '(59 123))))
+               (forward-char)
+               (setq current-char (char-after)))
+             (+ (line-number-at-pos) 1)))))
 
 (defun turbo-log--get-selected-text ()
   "Return selected text."
@@ -236,16 +235,16 @@ PREV-LINE-TEXT - text from previous line"
                            (python-mode . turbo-log--python-print)
                            (go-mode . turbo-log--golang-print)))
 
-(defun turbo-log--chose-mode ()
+(defun turbo-log--choose-mode ()
   "Chose logger by current major mode."
   (let* ((logger (assoc major-mode turbo-log--modes)))
-    (if (eq logger nil)
-        (funcall (lambda () (message "Logger for mode %s is not found" major-mode)
-                   logger))
-      logger)))
+    (if logger
+        logger
+      (progn (message "Logger for mode %s is not found" major-mode)
+             nil))))
 
 (defun turbo-log--handle-logger (logger-func)
-  "Common entrypoint for all loggers by provieded LOGGER-FUNC."
+  "Common entrypoint for all loggers by provided LOGGER-FUNC."
   (let* ((current-line-number (turbo-log--get-current-line-number))
          (raw-selected-text (turbo-log--get-selected-text))
          (formatted-selected-text (string-trim raw-selected-text))
@@ -259,7 +258,7 @@ PREV-LINE-TEXT - text from previous line"
 (defun turbo-log-print ()
   "Log selected region for current major mode."
   (interactive)
-  (let* ((logger-list (turbo-log--chose-mode))
+  (let* ((logger-list (turbo-log--choose-mode))
          (logger (cdr logger-list)))
     (if logger
         (turbo-log--handle-logger logger))))
@@ -321,8 +320,6 @@ LOG-TYPE can be 'commented 'uncommented 'both."
                             (line-number-at-pos)))
          (end-line (progn (search-forward-regexp ");?$" nil t)
                           (line-number-at-pos))))
-    (message "Start line %s" start-line)
-    (message "End line %s" end-line)
     (while (not (eq cycle-limitter (+ (- end-line start-line) 1)))
       (setq cycle-limitter (+ cycle-limitter 1))
       (funcall handle-line)

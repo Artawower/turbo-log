@@ -6,7 +6,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 ** How it works?
 [[./images/sample.gif]]
 ** Installation
-Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or another package manager:
+*** quelpa
 #+BEGIN_SRC emacs-lisp
 (use-package turbo-log
   :quelpa (turbo-log :fetcher github :repo "Artawower/turbo-log.el")
@@ -17,9 +17,18 @@ Now /turbo-log/ is not available from MELPA. Your can install it with quelpa or 
   :config
   (setq turbo-console--prefix "✰"))
   #+END_SRC
-  /doom/
-  #+BEGIN_SRC emacs-lisp
+*** doom
+#+BEGIN_SRC emacs-lisp
+;; packages.el
 (package! turbo-log :recipe (:host github :repo "artawower/turbo-log"))
+;; config.el
+(use-package turbo-log
+  :bind (("C-s-l" . turbo-log-print)
+         ("C-s-h" . turbo-log-comment-all-logs)
+         ("C-s-s" . turbo-log-uncomment-all-logs)
+         ("C-s-x" . turbo-log-delete-all-logs))
+  :config
+  (setq turbo-console--prefix "✰"))
   #+END_SRC
 
 ** Customisation
