@@ -34,11 +34,24 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 ** Customisation
 - =turbo-log-prefix= Special prefix, will put [line number][buffer-name?] <here>
 - =turbo-log--include-buffer-name= If true will put buffer name to log message
+- You can use multiple logger with choice.
+
+#+BEGIN_SRC emacs-lisp
+(setq turbo-log--ecmascript-loggers '("console.log" "console.debug" "console.error"))
+#+END_SRC
+There are available to customization loggers lists:
+
+=turbo-log--python-loggers=
+=turbo-log--ecmascript-loggers=
+=turbo-log--golang-loggers=
+
 ** Plans
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
 + [X] Golang support
++ [X] Add support for multiple logger
++ [ ] Add additional function for print only first logger from list.
 + [ ] Improve insert position finding
 + [X] Comment/uncomment all log messages that were made by package.
 + [X] Remove all log messages that were made by package.

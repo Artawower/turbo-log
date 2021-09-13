@@ -34,12 +34,12 @@
   "Prefix string for every log messages.")
 
 
-(defvar turbo-log--python-logger "print"
-  "Function for log in python.")
-(defvar turbo-log--ecmascript-logger "console.log"
-  "Function for log in ecmascript.")
-(defvar turbo-log--golang-logger "fmt.Println"
-  "Function for log in golang.")
+(defvar turbo-log--python-loggers '("print")
+  "List of python loggers.")
+(defvar turbo-log--ecmascript-loggers '("console.log")
+  "List of ecmascript loggers.")
+(defvar turbo-log--golang-loggers '("fmt.Println")
+  "List of golang loggers.")
 (defvar turbo-log--include-buffer-name t
   "Include current buffer name to log message.")
 
@@ -91,6 +91,12 @@ Insert LINE-NUMBER and buffer name."
         (concat line-number "[" (buffer-name) "] " turbo-log--prefix " ")
       (concat line-number " " turbo-log--prefix " "))))
 
+(defun turbo-log--choose-logger (loggers)
+  "Choose logger if multiple LOGGERS were provided."
+  (if (length> loggers 1)
+      (completing-read "Choose logger: " loggers)
+    (nth 0 loggers)))
+
 ;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
   "Normalize CODE block for correct console.log func."
@@ -99,9 +105,9 @@ Insert LINE-NUMBER and buffer name."
          ;; Remove type for typescript
          (code (replace-regexp-in-string "\\:[[:blank:]].+" "" code)))
     (turbo-log--remove-semicolon-at-end code)))
+
 (defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
-  (message text)
   (cond ((turbo-log--return-line-p text) (- current-line-number 1))
         ((string-match "{\\|;$" text) current-line-number)
         ;; TODO: add brackets stack for finding correct brackets sequence
@@ -138,7 +144,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           turbo-log--ecmascript-logger
+           (turbo-log--choose-logger turbo-log--ecmascript-loggers)
            "('"
            meta-info
            formatted-selected-text ": ', "
@@ -184,7 +190,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           turbo-log--python-logger
+           (turbo-log--choose-logger turbo-log--python-loggers)
            "('"
            meta-info
            formatted-selected-text ": ', "
@@ -217,7 +223,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           turbo-log--golang-logger
+           (turbo-log--choose-logger turbo-log--golang-loggers)
            "(\""
            meta-info
            formatted-selected-text ": \", "
@@ -263,14 +269,18 @@ PREV-LINE-TEXT - text from previous line"
     (if logger
         (turbo-log--handle-logger logger))))
 
+(defun turbo-log--join-loggers-for-regexp (loggers)
+  "Build regexp by provided list of LOGGERS."
+  (string-join loggers "\\|"))
+
 (defun turbo-log--get-logger-regexps ()
   "Get loggers on regexp format."
   (concat "\\("
-          (turbo-log--replace-string "." "\\." turbo-log--golang-logger)
+          (turbo-log--replace-string "." "\\." (turbo-log--join-loggers-for-regexp turbo-log--golang-loggers))
           "\\|"
-          (turbo-log--replace-string "." "\\." turbo-log--ecmascript-logger)
+          (turbo-log--replace-string "." "\\." (turbo-log--join-loggers-for-regexp turbo-log--ecmascript-loggers))
           "\\|"
-          turbo-log--python-logger
+          (turbo-log--join-loggers-for-regexp turbo-log--python-loggers)
           "\\)"))
 
 (defun turbo-log--build-log-regexp (log-type)
