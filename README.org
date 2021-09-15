@@ -32,6 +32,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
   #+END_SRC
 
 ** Customisation
+*** Common configs
 - =turbo-log-prefix= Special prefix, will put [line number][buffer-name?] <here>
 - =turbo-log--include-buffer-name= If true will put buffer name to log message
 - You can use multiple logger with choice.
@@ -45,6 +46,13 @@ There are available to customization loggers lists:
 =turbo-log--ecmascript-loggers=
 =turbo-log--golang-loggers=
 
+*** Language specific configs:
+Disable semicolon for ecmascript
+#+BEGIN_SRC emacs-lisp
+(plist-put turbo-log--ecmascript-configs :include-semicolon nil)
+#+END_SRC
+
+
 ** Plans
 + [X] Typescript support
 + [X] Javascript support
@@ -52,6 +60,8 @@ There are available to customization loggers lists:
 + [X] Golang support
 + [X] Add support for multiple logger
 + [ ] Add additional function for print only first logger from list.
-+ [ ] Improve insert position finding
++ [X] Improve insert position finding for ecmascript
++ [ ] Improve insert position finding for golang
++ [ ] Improve space/tab count calculation before inserted line.
 + [X] Comment/uncomment all log messages that were made by package.
 + [X] Remove all log messages that were made by package.

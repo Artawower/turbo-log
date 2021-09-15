@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.7.0
+;; Version: 0.7.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -42,6 +42,13 @@
   "List of golang loggers.")
 (defvar turbo-log--include-buffer-name t
   "Include current buffer name to log message.")
+(defvar turbo-log--open-brackets '(?{ ?\( ?\[)
+  "List of opened brackets.")
+(defvar turbo-log--close-brackets '(?} ?\) ?\])
+  "List of opened brackets.")
+(defvar turbo-log--ecmascript-configs '(:include-semicolon t)
+  "Additional configuration for ecmascript.
+:include-semicolon - should semicolon to be added after new log message inserted")
 
 (defun turbo-log--calculate-space-count (text)
   "Get space count at start of provided TEXT."
@@ -110,13 +117,34 @@ Insert LINE-NUMBER and buffer name."
   "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
   (cond ((turbo-log--return-line-p text) (- current-line-number 1))
         ((string-match "{\\|;$" text) current-line-number)
-        ;; TODO: add brackets stack for finding correct brackets sequence
-        (t (let ((current-char (char-after)))
-             ;;NOTE: Symbols: 59 ; 123 {
-             (while (and (not (eobp)) (not (member current-char '(59 123))))
+        ((string-match "\\[$" text) (progn
+                                      (search-forward-regexp "\\];?$" nil t)
+                                      (+ (line-number-at-pos) 1)))
+        (t (let* ((current-char (char-after))
+                  (before-char (char-before))
+                  (all-brackets (append turbo-log--open-brackets turbo-log--close-brackets))
+                  (first-back-bracket nil)
+                  (brackets '())
+                  (brackets (save-excursion
+                              (while (and (not first-back-bracket) (not (bobp)))
+                                (setq before-char (char-before))
+                                (backward-char)
+                                (cond ((and (length= brackets 0) (eq before-char ?{)) (setq first-back-bracket before-char))
+                                      ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
+                                      ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets)))))))
+                  (brackets (if (eq first-back-bracket ?{) '(?{) '()))
+                  (found nil))
+
+             (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (length= brackets 0)) (not found))
                (forward-char)
-               (setq current-char (char-after)))
-             (+ (line-number-at-pos) 1)))))
+               (setq current-char (char-after))
+               (cond ((and (eq current-char ?}) (length= brackets 0))
+                      (setq found t))
+                     ((and (member current-char turbo-log--close-brackets) (length> brackets 0))
+                      (setq brackets (butlast brackets)))
+                     ((member current-char turbo-log--open-brackets)
+                      (setq brackets (append brackets (list current-char))))))
+             (if found current-line-number (+ (line-number-at-pos) 1))))))
 
 (defun turbo-log--get-selected-text ()
   "Return selected text."
@@ -148,7 +176,9 @@ PREV-LINE-TEXT - text from previous line"
            "('"
            meta-info
            formatted-selected-text ": ', "
-           normalized-code ");\n")))
+           normalized-code ")"
+           (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";")
+           "\n")))
 
 
 
