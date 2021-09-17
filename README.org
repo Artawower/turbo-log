@@ -63,5 +63,6 @@ Disable semicolon for ecmascript
 + [X] Improve insert position finding for ecmascript
 + [ ] Improve insert position finding for golang
 + [ ] Improve space/tab count calculation before inserted line.
++ [ ] Change custom comment setter to built in "comment region" func.
 + [X] Comment/uncomment all log messages that were made by package.
 + [X] Remove all log messages that were made by package.
