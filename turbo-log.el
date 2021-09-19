@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.7.1
+;; Version: 0.8.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 
 ;;; Code:
 
+;;;; Variables
 (require 'subr-x)
 
 (defvar turbo-log--prefix "TCL: "
@@ -50,6 +51,7 @@
   "Additional configuration for ecmascript.
 :include-semicolon - should semicolon to be added after new log message inserted")
 
+;;;; Common functions
 (defun turbo-log--calculate-space-count (text)
   "Get space count at start of provided TEXT."
   (let* ((original-text-length (length text))
@@ -98,13 +100,14 @@ Insert LINE-NUMBER and buffer name."
         (concat line-number "[" (buffer-name) "] " turbo-log--prefix " ")
       (concat line-number " " turbo-log--prefix " "))))
 
-(defun turbo-log--choose-logger (loggers)
-  "Choose logger if multiple LOGGERS were provided."
-  (if (length> loggers 1)
+(defun turbo-log--choose-logger (loggers &optional multiple-loggers-p)
+  "Choose logger if multiple LOGGERS were provided.
+When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
+  (if (and (length> loggers 1) multiple-loggers-p)
       (completing-read "Choose logger: " loggers)
     (nth 0 loggers)))
 
-;; Ecmascript
+;;;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
   "Normalize CODE block for correct console.log func."
   (let* ((code (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))
@@ -157,12 +160,13 @@ Insert LINE-NUMBER and buffer name."
     (+ (line-number-at-pos) 1)))
 
 
-(defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text)
+(defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
   "Console log for ecmascript, js/ts modes.
 
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line"
+PREV-LINE-TEXT - text from previous line
+MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
@@ -172,7 +176,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           (turbo-log--choose-logger turbo-log--ecmascript-loggers)
+           (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p)
            "('"
            meta-info
            formatted-selected-text ": ', "
@@ -204,13 +208,14 @@ PREV-LINE-TEXT - text from previous line"
                  (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))))
     code))
 
-;; Python logger
-(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text)
+;;;; Python logger
+(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
   "Printing for python mode.
 
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line"
+PREV-LINE-TEXT - text from previous line
+MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--python-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text (- insert-line-number 1))))
@@ -220,7 +225,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           (turbo-log--choose-logger turbo-log--python-loggers)
+           (turbo-log--choose-logger turbo-log--python-loggers multiple-logger-p)
            "('"
            meta-info
            formatted-selected-text ": ', "
@@ -231,19 +236,20 @@ PREV-LINE-TEXT - text from previous line"
     (turbo-log--goto-line insert-line-number)
     (insert turbo-log--message)))
 
-;; Golang logger
+;;;; Golang logger
 (defun turbo-log--golang-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER and provided TEXT."
   (if (turbo-log--return-line-p text)
       (- current-line-number 1)
     current-line-number))
 
-(defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text)
+(defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
   "Print message for golang mode.
 
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line"
+PREV-LINE-TEXT - text from previous line
+MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
@@ -253,7 +259,7 @@ PREV-LINE-TEXT - text from previous line"
          (turbo-log--message
           (concat
            additional-spaces
-           (turbo-log--choose-logger turbo-log--golang-loggers)
+           (turbo-log--choose-logger turbo-log--golang-loggers multiple-logger-p)
            "(\""
            meta-info
            formatted-selected-text ": \", "
@@ -279,8 +285,9 @@ PREV-LINE-TEXT - text from previous line"
       (progn (message "Logger for mode %s is not found" major-mode)
              nil))))
 
-(defun turbo-log--handle-logger (logger-func)
-  "Common entrypoint for all loggers by provided LOGGER-FUNC."
+(defun turbo-log--handle-logger (logger-func &optional multiple-logger-p)
+  "Common entrypoint for all loggers by provided LOGGER-FUNC.
+MULTIPLE-LOGGER-P allow to choose logger from list interactively."
   (let* ((current-line-number (turbo-log--get-current-line-number))
          (raw-selected-text (turbo-log--get-selected-text))
          (formatted-selected-text (string-trim raw-selected-text))
@@ -288,16 +295,9 @@ PREV-LINE-TEXT - text from previous line"
     (funcall logger-func
              current-line-number
              formatted-selected-text
-             prev-line-text)))
+             prev-line-text
+             multiple-logger-p)))
 
-;;;###autoload
-(defun turbo-log-print ()
-  "Log selected region for current major mode."
-  (interactive)
-  (let* ((logger-list (turbo-log--choose-mode))
-         (logger (cdr logger-list)))
-    (if logger
-        (turbo-log--handle-logger logger))))
 
 (defun turbo-log--join-loggers-for-regexp (loggers)
   "Build regexp by provided list of LOGGERS."
@@ -366,6 +366,24 @@ LOG-TYPE can be 'commented 'uncommented 'both."
       (forward-line -1))))
 
 ;;;###autoload
+(defun turbo-log-print ()
+  "Log selected region for current major mode."
+  (interactive)
+  (let* ((logger-list (turbo-log--choose-mode))
+         (logger (cdr logger-list)))
+    (if logger
+        (turbo-log--handle-logger logger t))))
+
+;;;###autoload
+(defun turbo-log-print-immediately ()
+  "Log selected region for current major mode without ask a logger from list."
+  (interactive)
+  (let* ((logger-list (turbo-log--choose-mode))
+         (logger (cdr logger-list)))
+    (if logger
+        (turbo-log--handle-logger logger))))
+
+;;;###autoload
 (defun turbo-log-comment-all-logs ()
   "Hide all log messages made by turbo-log."
   (interactive)
@@ -391,7 +409,7 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 
 ;;;###autoload
 (defun turbo-log-delete-all-logs ()
-  "Delete all turb-log loggers."
+  "Delete all turbo-log loggers."
   (interactive)
   (save-excursion
     (goto-char (point-min))

@@ -9,8 +9,9 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 *** quelpa
 #+BEGIN_SRC emacs-lisp
 (use-package turbo-log
-  :quelpa (turbo-log :fetcher github :repo "Artawower/turbo-log.el")
+  :quelpa (turbo-log :fetcher github :repo "artawower/turbo-log.el")
   :bind (("C-s-l" . turbo-log-print)
+         ("C-s-i" . turbo-log-print-immediately)
          ("C-s-h" . turbo-log-comment-all-logs)
          ("C-s-s" . turbo-log-uncomment-all-logs)
          ("C-s-d" . turbo-log-delete-all-logs))
@@ -24,6 +25,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 ;; config.el
 (use-package turbo-log
   :bind (("C-s-l" . turbo-log-print)
+         ("C-s-i" . turbo-log-print-immediately)
          ("C-s-h" . turbo-log-comment-all-logs)
          ("C-s-s" . turbo-log-uncomment-all-logs)
          ("C-s-x" . turbo-log-delete-all-logs))
@@ -31,7 +33,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
   (setq turbo-console--prefix "✰"))
   #+END_SRC
 
-** Customisation
+** Customization
 *** Common configs
 - =turbo-log-prefix= Special prefix, will put [line number][buffer-name?] <here>
 - =turbo-log--include-buffer-name= If true will put buffer name to log message
@@ -59,7 +61,8 @@ Disable semicolon for ecmascript
 + [X] Python support
 + [X] Golang support
 + [X] Add support for multiple logger
-+ [ ] Add additional function for print only first logger from list.
++ [X] Add additional function for print only first logger from list.
++ [ ] Add support for ecmascript functions without body like =function func() {  }=
 + [X] Improve insert position finding for ecmascript
 + [ ] Improve insert position finding for golang
 + [ ] Improve space/tab count calculation before inserted line.
