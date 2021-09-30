@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.8.0
+;; Version: 0.9.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 
 ;;;; Variables
 (require 'subr-x)
+(require 'simple)
 
 (defvar turbo-log--prefix "TCL: "
   "Prefix string for every log messages.")
@@ -107,6 +108,13 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
       (completing-read "Choose logger: " loggers)
     (nth 0 loggers)))
 
+(defun turbo-log--insert-with-indent (line-number text)
+  "Insert TEXT to current LINE-NUMBER with automatic indent."
+  (turbo-log--goto-line (- line-number 1))
+  (end-of-line)
+  (newline-and-indent)
+  (insert text))
+
 ;;;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
   "Normalize CODE block for correct console.log func."
@@ -125,7 +133,6 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                                       (+ (line-number-at-pos) 1)))
         (t (let* ((current-char (char-after))
                   (before-char (char-before))
-                  (all-brackets (append turbo-log--open-brackets turbo-log--close-brackets))
                   (first-back-bracket nil)
                   (brackets '())
                   (brackets (save-excursion
@@ -135,7 +142,6 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                                 (cond ((and (length= brackets 0) (eq before-char ?{)) (setq first-back-bracket before-char))
                                       ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
                                       ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets)))))))
-                  (brackets (if (eq first-back-bracket ?{) '(?{) '()))
                   (found nil))
 
              (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (length= brackets 0)) (not found))
@@ -170,24 +176,18 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
-         (additional-spaces (make-string insert-line-space-count ? ))
          (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
          (turbo-log--message
           (concat
-           additional-spaces
            (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p)
            "('"
            meta-info
            formatted-selected-text ": ', "
            normalized-code ")"
-           (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";")
-           "\n")))
+           (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";"))))
 
-
-
-    (turbo-log--goto-line insert-line-number)
-    (insert turbo-log--message)))
+    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
@@ -219,22 +219,17 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--python-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text (- insert-line-number 1))))
-         (additional-spaces (make-string insert-line-space-count ? ))
          (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
          (turbo-log--message
           (concat
-           additional-spaces
            (turbo-log--choose-logger turbo-log--python-loggers multiple-logger-p)
            "('"
            meta-info
            formatted-selected-text ": ', "
-           normalized-code ")\n")))
+           normalized-code ")")))
 
-
-
-    (turbo-log--goto-line insert-line-number)
-    (insert turbo-log--message)))
+    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
 
 ;;;; Golang logger
 (defun turbo-log--golang-find-insert-pos (current-line-number text)
@@ -253,25 +248,23 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
-         (additional-spaces (make-string (+ insert-line-space-count 1) ? ))
          (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code formatted-selected-text)
          (turbo-log--message
           (concat
-           additional-spaces
            (turbo-log--choose-logger turbo-log--golang-loggers multiple-logger-p)
            "(\""
            meta-info
            formatted-selected-text ": \", "
-           normalized-code ")\n")))
+           normalized-code ")")))
 
 
-    (turbo-log--goto-line insert-line-number)
-    (insert turbo-log--message)))
+    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
 
 (defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
                            (js-mode . turbo-log--ecmascript-print)
                            (ng2-ts-mode . turbo-log--ecmascript-print)
+                           (rjsx-mode . turbo-log--ecmascript-print)
                            (web-mode . turbo-log--ecmascript-print)
                            (vue-mode . turbo-log--ecmascript-print)
                            (python-mode . turbo-log--python-print)
@@ -387,8 +380,6 @@ LOG-TYPE can be 'commented 'uncommented 'both."
       (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
       (search-forward ")" nil t)
       (forward-line))))
-
-
 
 ;;;###autoload
 (defun turbo-log-uncomment-all-logs ()
