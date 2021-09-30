@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.9.0
+;; Version: 0.9.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -133,6 +133,7 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                                       (+ (line-number-at-pos) 1)))
         (t (let* ((current-char (char-after))
                   (before-char (char-before))
+                  (all-brackets (append turbo-log--open-brackets turbo-log--close-brackets))
                   (first-back-bracket nil)
                   (brackets '())
                   (brackets (save-excursion
@@ -142,6 +143,7 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                                 (cond ((and (length= brackets 0) (eq before-char ?{)) (setq first-back-bracket before-char))
                                       ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
                                       ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets)))))))
+                  (brackets (if (eq first-back-bracket ?{) '(?{) '()))
                   (found nil))
 
              (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (length= brackets 0)) (not found))
