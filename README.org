@@ -55,7 +55,7 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** TODO Plans [10/13]
+** TODO Plans [11/13]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
@@ -65,7 +65,7 @@ Disable semicolon for ecmascript
 + [ ] Add support for ecmascript functions without body like =function func() {  }=
 + [X] Improve insert position finding for ecmascript
 + [ ] Improve insert position finding for golang
-+ [ ] Improve space/tab count calculation before inserted line. ==newline-and-indent==
++ [X] Improve space/tab count calculation before inserted line. Use ==newline-and-indent==
 + [X] Change custom comment setter to built in "comment region" func.
 + [X] Comment/uncomment all log messages that were made by package.
 + [X] Remove all log messages that were made by package.
