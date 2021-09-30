@@ -341,17 +341,11 @@ LOG-TYPE can be 'commented 'uncommented 'both."
   "Get regexp for findings comment in current mode."
   (if (eq major-mode 'python-mode) "#" "\\/\\/"))
 
-(defun turbo-log--comment-current-line ()
-  "Comment current line."
-  (beginning-of-line-text)
-  (insert (turbo-log--get-comment-string)))
-
-(defun turbo-log--uncomment-current-line ()
-  "Uncomment current line."
-  (end-of-line)
-  (search-backward (turbo-log--get-comment-string))
-  (replace-match ""))
-
+(defun turbo-log--toggle-current-line-comment ()
+  "Toggle commenting for current line."
+  (let* ((beg (line-beginning-position))
+         (end (line-end-position)))
+    (comment-or-uncomment-region beg end)))
 
 (defun turbo-log--handle-log-line (handle-line)
   "Call HANDLE-LINE func for each comment line."
@@ -390,7 +384,7 @@ LOG-TYPE can be 'commented 'uncommented 'both."
   (save-excursion
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'uncommented) nil t)
-      (turbo-log--handle-log-line 'turbo-log--comment-current-line)
+      (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
       (search-forward ")" nil t)
       (forward-line))))
 
@@ -403,7 +397,7 @@ LOG-TYPE can be 'commented 'uncommented 'both."
   (save-excursion
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'commented) nil t)
-      (turbo-log--handle-log-line 'turbo-log--uncomment-current-line)
+      (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
       (search-forward ")" nil t)
       (forward-line))))
 
