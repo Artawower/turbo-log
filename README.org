@@ -55,14 +55,14 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** TODO Plans [11/13]
+** TODO Plans [12/13]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
 + [X] Golang support
 + [X] Add support for multiple logger
 + [X] Add additional function for print only first logger from list.
-+ [ ] Add support for ecmascript functions without body like =function func() {  }=
++ [X] Add support for ecmascript functions without body like =function func() {  }=
 + [X] Improve insert position finding for ecmascript
 + [ ] Improve insert position finding for golang
 + [X] Improve space/tab count calculation before inserted line. Use ==newline-and-indent==

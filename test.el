@@ -103,4 +103,17 @@
                              (should (equal (line-number-at-pos) 7))) 0)
   )
 
+(ert-deftest test-ecmascript-empty-body-p ()
+  "Test that turbo-log--ecmascript-empty-body-p should find func or method."
+  (should (equal t (turbo-log--ecmascript-empty-body-p "function myAwesomeFunc() { }")))
+  (should (equal t (turbo-log--ecmascript-empty-body-p "protected myAwesomeFunc() {}")))
+  (should (equal t (turbo-log--ecmascript-empty-body-p "public myAwesomeFunc(a: string) {}")))
+  (should (equal t (turbo-log--ecmascript-empty-body-p "private some_bad_function(bad_arg, anotherArg) {}")))
+  (should (equal t (turbo-log--ecmascript-empty-body-p "some_bad_function(bad_arg, anotherArg) {}")))
+  (should (equal nil (turbo-log--ecmascript-empty-body-p "someObject {}")))
+  (should (equal nil (turbo-log--ecmascript-empty-body-p "someObject { }")))
+  (should (equal nil (turbo-log--ecmascript-empty-body-p "anotherobject { b: 4, }")))
+  (should (equal nil (turbo-log--ecmascript-empty-body-p "anotherobject { b: 'some-string' }")))
+  (should (equal nil (turbo-log--ecmascript-empty-body-p "myf {awesomeKey:'some-string'}"))))
+
 ;;; test.el ends here

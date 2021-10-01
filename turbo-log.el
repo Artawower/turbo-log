@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.9.1
+;; Version: 0.10.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -167,6 +167,9 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
       (line-number-at-pos)
     (+ (line-number-at-pos) 1)))
 
+(defun turbo-log--ecmascript-empty-body-p (line-text)
+  "Return t if LINE-TEXT is func like function hello() { }."
+  (not (eq (string-match "\\(function\\|public\\|protected\\|private\\)?[[:blank:]]?[a-zA-Z0-9_]+\([a-zA-Z0-9_:,[:blank:]]*\)[[:blank:]]*{[[:blank:]]*}" line-text) nil)))
 
 (defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
   "Console log for ecmascript, js/ts modes.
@@ -176,7 +179,8 @@ FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line
 MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
-  (let* ((insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
+  (let* ((is-empty-body (turbo-log--ecmascript-empty-body-p (turbo-log--get-line-text current-line-number)))
+         (insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
          (insert-line-space-count (turbo-log--calculate-space-count (turbo-log--get-line-text insert-line-number)))
          (meta-info (turbo-log--format-meta-info current-line-number))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
@@ -189,7 +193,16 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
            normalized-code ")"
            (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";"))))
 
-    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
+    (if is-empty-body
+        (progn
+          (turbo-log--goto-line (- current-line-number 1))
+          (beginning-of-line)
+          (search-forward-regexp "}[[:blank:]]*")
+          (replace-match "")
+          (turbo-log--insert-with-indent current-line-number turbo-log--message)
+          (turbo-log--insert-with-indent (+ current-line-number 1) "}")
+          (indent-according-to-mode))
+        (turbo-log--insert-with-indent insert-line-number turbo-log--message))))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
@@ -367,10 +380,11 @@ LOG-TYPE can be 'commented 'uncommented 'both."
 (defun turbo-log-print-immediately ()
   "Log selected region for current major mode without ask a logger from list."
   (interactive)
+  (save-excursion
   (let* ((logger-list (turbo-log--choose-mode))
          (logger (cdr logger-list)))
     (if logger
-        (turbo-log--handle-logger logger))))
+        (turbo-log--handle-logger logger)))))
 
 ;;;###autoload
 (defun turbo-log-comment-all-logs ()
