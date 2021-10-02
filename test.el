@@ -116,4 +116,10 @@
   (should (equal nil (turbo-log--ecmascript-empty-body-p "anotherobject { b: 'some-string' }")))
   (should (equal nil (turbo-log--ecmascript-empty-body-p "myf {awesomeKey:'some-string'}"))))
 
+
+(ert-deftest test-golang-inline-function-p ()
+  "Test golang inline function."
+  (should (equal nil (turbo-log--golang-inline-func-p "(* Method) func test() {")))
+  (should (equal nil (turbo-log--golang-inline-func-p "(* Method) func test(arg1 int, arg2 string) {"))))
+
 ;;; test.el ends here

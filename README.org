@@ -55,7 +55,7 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** TODO Plans [12/13]
+** DONE Plans [13/13]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
@@ -64,7 +64,7 @@ Disable semicolon for ecmascript
 + [X] Add additional function for print only first logger from list.
 + [X] Add support for ecmascript functions without body like =function func() {  }=
 + [X] Improve insert position finding for ecmascript
-+ [ ] Improve insert position finding for golang
++ [X] Improve insert position finding for golang
 + [X] Improve space/tab count calculation before inserted line. Use ==newline-and-indent==
 + [X] Change custom comment setter to built in "comment region" func.
 + [X] Comment/uncomment all log messages that were made by package.

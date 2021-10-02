@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 0.10.0
+;; Version: 1.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -202,7 +202,7 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
           (turbo-log--insert-with-indent current-line-number turbo-log--message)
           (turbo-log--insert-with-indent (+ current-line-number 1) "}")
           (indent-according-to-mode))
-        (turbo-log--insert-with-indent insert-line-number turbo-log--message))))
+      (turbo-log--insert-with-indent insert-line-number turbo-log--message))))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
@@ -247,11 +247,48 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
     (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
 
 ;;;; Golang logger
+(defun turbo-log--golang-inline-func-p (text)
+  "Return t if current TEXT contain is valid golang function."
+  (string-match "[\w [:blank:]\)\(\*]+ func [\w [:blank:]\)\(\*] {" text))
+
 (defun turbo-log--golang-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER and provided TEXT."
-  (if (turbo-log--return-line-p text)
-      (- current-line-number 1)
-    current-line-number))
+  (cond ((turbo-log--return-line-p text) (- current-line-number 1))
+        ((turbo-log--golang-inline-func-p text) (+ current-line-number 1))
+        ((and (string-match "\{$" text) (not (string-match " func " text))) (progn
+                                                                              (search-forward-regexp "\};?$" nil t)
+                                                                              (+ (line-number-at-pos) 1)))
+        (t (let* ((current-char nil)
+                  (before-char nil)
+                  (all-brackets (append turbo-log--open-brackets turbo-log--close-brackets))
+                  (first-back-bracket nil)
+                  (brackets '()))
+
+             (save-excursion
+               (while (and (not first-back-bracket) (not (bobp)))
+                 (setq before-char (char-before))
+                 (backward-char)
+                 (cond ((and (length= brackets 0)
+                             ;; 40 - (
+                             (or (eq before-char ?{) (eq before-char 40)))
+                        (setq first-back-bracket before-char))
+                       ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
+                       ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets)))))
+               brackets)
+
+             (if (eq before-char ?{)
+                 current-line-number
+               (progn
+                 (while (and (not (eobp)) (not (eq (car brackets) ?{)))
+                   (forward-char)
+                   (setq current-char (char-after))
+                   (message "%s" brackets)
+                   (cond ((member current-char turbo-log--close-brackets)
+                          (setq brackets (butlast brackets)))
+                         ((member current-char turbo-log--open-brackets)
+                          (setq brackets (append brackets (list current-char))))
+                         (t (ignore))))
+                 (+ (line-number-at-pos) 1)))))))
 
 (defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
   "Print message for golang mode.
@@ -381,10 +418,10 @@ LOG-TYPE can be 'commented 'uncommented 'both."
   "Log selected region for current major mode without ask a logger from list."
   (interactive)
   (save-excursion
-  (let* ((logger-list (turbo-log--choose-mode))
-         (logger (cdr logger-list)))
-    (if logger
-        (turbo-log--handle-logger logger)))))
+    (let* ((logger-list (turbo-log--choose-mode))
+           (logger (cdr logger-list)))
+      (if logger
+          (turbo-log--handle-logger logger)))))
 
 ;;;###autoload
 (defun turbo-log-comment-all-logs ()
