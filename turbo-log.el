@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.0.1
+;; Version: 1.0.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -181,7 +181,7 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((is-empty-body (turbo-log--ecmascript-empty-body-p (turbo-log--get-line-text current-line-number)))
          (insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
-         (meta-info (turbo-log--format-meta-info current-line-number))
+         (meta-info (turbo-log--format-meta-info insert-line-number))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
          (turbo-log--message
           (concat
@@ -232,7 +232,7 @@ PREV-LINE-TEXT - text from previous line
 MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--python-find-insert-pos current-line-number prev-line-text))
-         (meta-info (turbo-log--format-meta-info current-line-number))
+         (meta-info (turbo-log--format-meta-info insert-line-number))
          (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
          (turbo-log--message
           (concat
@@ -296,7 +296,7 @@ PREV-LINE-TEXT - text from previous line
 MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
   (let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
-         (meta-info (turbo-log--format-meta-info current-line-number))
+         (meta-info (turbo-log--format-meta-info insert-line-number))
          (normalized-code formatted-selected-text)
          (turbo-log--message
           (concat
