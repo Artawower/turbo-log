@@ -140,13 +140,13 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                (while (and (not first-back-bracket) (not (bobp)))
                  (setq before-char (char-before))
                  (backward-char)
-                 (cond ((and (length= brackets 0) (eq before-char ?{)) (setq first-back-bracket before-char))
+                 (cond ((and (eq (length brackets) 0) (eq before-char ?{)) (setq first-back-bracket before-char))
                        ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
                        ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets))))))
 
              (setq brackets (if (eq first-back-bracket ?{) '(?{) '()))
 
-             (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (length= brackets 0)) (not found))
+             (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (eq (length brackets) 0)) (not found))
                (forward-char)
                (setq current-char (char-after))
                (cond ((and (eq current-char ?}) (length= brackets 0))
