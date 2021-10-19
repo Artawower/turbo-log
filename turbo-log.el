@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.0.2
+;; Version: 1.0.3
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -303,7 +303,7 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
            (turbo-log--choose-logger turbo-log--golang-loggers multiple-logger-p)
            "(\""
            meta-info
-           formatted-selected-text ": \", "
+           formatted-selected-text ": %v\", "
            normalized-code ")")))
 
 
