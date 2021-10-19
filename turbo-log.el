@@ -104,7 +104,7 @@ Insert LINE-NUMBER and buffer name."
 (defun turbo-log--choose-logger (loggers &optional multiple-loggers-p)
   "Choose logger if multiple LOGGERS were provided.
 When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
-  (if (and (length> loggers 1) multiple-loggers-p)
+  (if (and (> (length loggers) 1) multiple-loggers-p)
       (completing-read "Choose logger: " loggers)
     (nth 0 loggers)))
 
@@ -151,7 +151,7 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
                (setq current-char (char-after))
                (cond ((and (eq current-char ?}) (length= brackets 0))
                       (setq found t))
-                     ((and (member current-char turbo-log--close-brackets) (length> brackets 0))
+                     ((and (member current-char turbo-log--close-brackets) (> (length brackets) 0))
                       (setq brackets (butlast brackets)))
                      ((member current-char turbo-log--open-brackets)
                       (setq brackets (append brackets (list current-char))))))
