@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.0.3
+;; Version: 1.1.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -48,9 +48,12 @@
   "List of opened brackets.")
 (defvar turbo-log--close-brackets '(?} ?\) ?\])
   "List of opened brackets.")
-(defvar turbo-log--ecmascript-configs '(:include-semicolon t)
+
+(defvar turbo-log--ecmascript-configs '(:include-semicolon t
+                                        :max-line-length 80)
   "Additional configuration for ecmascript.
-:include-semicolon - should semicolon to be added after new log message inserted")
+:include-semicolon - should semicolon to be added after new log message inserted
+:max-line-length - max line length for console log line break.")
 
 ;;;; Common functions
 (defun turbo-log--calculate-space-count (text)
@@ -67,7 +70,7 @@
   (thing-at-point 'line))
 
 (defun turbo-log--goto-line (line-number)
-  "Non interactive implementation of 'turbo-log--goto-line' by provided LINE-NUMBER."
+  "Move cursor to provided LINE-NUMBER."
   (forward-line (- line-number (line-number-at-pos))))
 
 (defun turbo-log--return-line-p (text)
@@ -114,6 +117,14 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
   (end-of-line)
   (newline-and-indent)
   (insert text))
+
+(defun turbo-log--insert-many-with-indent (line-number texts)
+  "Insert every messages from TEXTS alists.
+Every text will be put at new line relative LINE-NUMBER"
+  (dolist (text texts)
+    (when text
+      (turbo-log--insert-with-indent line-number text)
+      (setq line-number (+ line-number 1)))))
 
 ;;;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
@@ -162,7 +173,8 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
   (string-trim (buffer-substring (region-beginning) (region-end))))
 
 (defun turbo-log--get-current-line-number ()
-  "Return current line number after select.  Depend on full line selected or region."
+  "Return current line number after select.
+Depend on full line selected or region."
   (if (bolp)
       (line-number-at-pos)
     (+ (line-number-at-pos) 1)))
@@ -182,26 +194,35 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
   (let* ((is-empty-body (turbo-log--ecmascript-empty-body-p (turbo-log--get-line-text current-line-number)))
          (insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
          (meta-info (turbo-log--format-meta-info insert-line-number))
+         (logger (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
-         (turbo-log--message
-          (concat
-           (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p)
-           "('"
-           meta-info
-           formatted-selected-text ": ', "
-           normalized-code ")"
-           (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";"))))
+         (content-between-brackets (concat meta-info
+                                           formatted-selected-text ": ', "))
+         (max-log-length (plist-get turbo-log--ecmascript-configs :max-line-length))
+         (multiline-p (and max-log-length
+                           (length> (concat logger content-between-brackets normalized-code)
+                                    max-log-length)))
+         (line-break (if multiline-p "\n" ""))
+         (turbo-log--messages
+          `(,(concat logger "(" line-break)
+            ,(concat "'" content-between-brackets line-break)
+            ,(concat normalized-code line-break)
+            ,(concat ")" (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";" ""))))
 
-    (if is-empty-body
-        (progn
-          (turbo-log--goto-line (- current-line-number 1))
-          (beginning-of-line)
-          (search-forward-regexp "}[[:blank:]]*")
-          (replace-match "")
-          (turbo-log--insert-with-indent current-line-number turbo-log--message)
-          (turbo-log--insert-with-indent (+ current-line-number 1) "}")
-          (indent-according-to-mode))
-      (turbo-log--insert-with-indent insert-line-number turbo-log--message))))
+         (turbo-log--messages (if multiline-p turbo-log--messages `(,(string-join turbo-log--messages)))))
+
+(if is-empty-body
+    (progn
+      (turbo-log--goto-line (- current-line-number 1))
+      (beginning-of-line)
+      (search-forward-regexp "}[[:blank:]]*")
+      (replace-match "")
+      (setq turbo-log--messages (append turbo-log--messages '("}")))
+      (message "%s" turbo-log--messages)
+      (message "------------------")
+      (turbo-log--insert-many-with-indent current-line-number turbo-log--messages)
+      (indent-according-to-mode))
+  (turbo-log--insert-many-with-indent insert-line-number turbo-log--messages))))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
@@ -279,7 +300,6 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
                  (while (and (not (eobp)) (not (eq (car brackets) ?{)))
                    (forward-char)
                    (setq current-char (char-after))
-                   (message "%s" brackets)
                    (cond ((member current-char turbo-log--close-brackets)
                           (setq brackets (butlast brackets)))
                          ((member current-char turbo-log--open-brackets)
@@ -311,6 +331,8 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
 (defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
                            (js-mode . turbo-log--ecmascript-print)
+                           (js2-mode . turbo-log--ecmascript-print)
+                           (rjsx-mode . turbo-log--ecmascript-print)
                            (ng2-ts-mode . turbo-log--ecmascript-print)
                            (rjsx-mode . turbo-log--ecmascript-print)
                            (web-mode . turbo-log--ecmascript-print)

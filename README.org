@@ -55,7 +55,7 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** DONE Plans [13/13]
+** DONE Plans [14/17]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
@@ -69,3 +69,7 @@ Disable semicolon for ecmascript
 + [X] Change custom comment setter to built in "comment region" func.
 + [X] Comment/uncomment all log messages that were made by package.
 + [X] Remove all log messages that were made by package.
++ [X] Add line break for long lines (ecmascript)
++ [ ] Add loggers as template
++ [ ] Universal logger for other languages without additional logic
++ [ ] Add log moving before if statement
