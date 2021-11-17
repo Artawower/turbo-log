@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.1.0
+;; Version: 1.1.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -332,6 +332,7 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 (defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
                            (js-mode . turbo-log--ecmascript-print)
                            (js2-mode . turbo-log--ecmascript-print)
+                           (typescript-tsx-mode . turbo-log--ecmascript-print)
                            (rjsx-mode . turbo-log--ecmascript-print)
                            (ng2-ts-mode . turbo-log--ecmascript-print)
                            (rjsx-mode . turbo-log--ecmascript-print)
