@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.1.1
+;; Version: 1.1.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -121,10 +121,15 @@ When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
 (defun turbo-log--insert-many-with-indent (line-number texts)
   "Insert every messages from TEXTS alists.
 Every text will be put at new line relative LINE-NUMBER"
-  (dolist (text texts)
-    (when text
-      (turbo-log--insert-with-indent line-number text)
-      (setq line-number (+ line-number 1)))))
+  (turbo-log--goto-line (- line-number 1))
+  (end-of-line)
+  (newline-and-indent)
+  (let ((start-selection (point)))
+    (dolist (text texts)
+      (when text
+        (insert text)
+        (setq line-number (+ line-number 1))))
+    (indent-region start-selection (point))))
 
 ;;;; Ecmascript
 (defun turbo-log--ecmascript-normilize-code (code)
@@ -211,18 +216,16 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
 
          (turbo-log--messages (if multiline-p turbo-log--messages `(,(string-join turbo-log--messages)))))
 
-(if is-empty-body
-    (progn
-      (turbo-log--goto-line (- current-line-number 1))
-      (beginning-of-line)
-      (search-forward-regexp "}[[:blank:]]*")
-      (replace-match "")
-      (setq turbo-log--messages (append turbo-log--messages '("}")))
-      (message "%s" turbo-log--messages)
-      (message "------------------")
-      (turbo-log--insert-many-with-indent current-line-number turbo-log--messages)
-      (indent-according-to-mode))
-  (turbo-log--insert-many-with-indent insert-line-number turbo-log--messages))))
+    (if is-empty-body
+        (progn
+          (turbo-log--goto-line (- current-line-number 1))
+          (beginning-of-line)
+          (search-forward-regexp "}[[:blank:]]*")
+          (replace-match "")
+          (setq turbo-log--messages (append turbo-log--messages '("}")))
+          (turbo-log--insert-many-with-indent current-line-number turbo-log--messages)
+          (indent-according-to-mode))
+      (turbo-log--insert-many-with-indent insert-line-number turbo-log--messages))))
 
 (defun turbo-log--python-find-insert-pos (current-line-number text)
   "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."

@@ -55,7 +55,7 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** DONE Plans [14/17]
+** Plans [14/19]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
@@ -73,3 +73,5 @@ Disable semicolon for ecmascript
 + [ ] Add loggers as template
 + [ ] Universal logger for other languages without additional logic
 + [ ] Add log moving before if statement
++ [ ] Refactor code.
++ [ ] Paste variable inside logger!
