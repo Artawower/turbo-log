@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.1.2
+;; Version: 1.2.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -188,16 +188,20 @@ Depend on full line selected or region."
   "Return t if LINE-TEXT is func like function hello() { }."
   (not (eq (string-match "\\(function\\|public\\|protected\\|private\\)?[[:blank:]]?[a-zA-Z0-9_]+\([a-zA-Z0-9_:,[:blank:]]*\)[[:blank:]]*{[[:blank:]]*}" line-text) nil)))
 
-(defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
+(defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
   "Console log for ecmascript, js/ts modes.
 
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?"
+MULTIPLE-LOGGER-P - should guess list of available loggers?
+FORCE-CURRENT-LINE-P - if true text will be selected under current
+line without any smart calculations."
 
   (let* ((is-empty-body (turbo-log--ecmascript-empty-body-p (turbo-log--get-line-text current-line-number)))
-         (insert-line-number (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text))
+         (insert-line-number (if force-current-line-p
+                                 current-line-number
+                               (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text)))
          (meta-info (turbo-log--format-meta-info insert-line-number))
          (logger (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p))
          (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
@@ -247,15 +251,19 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
     code))
 
 ;;;; Python logger
-(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
+(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
   "Printing for python mode.
 
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?"
+MULTIPLE-LOGGER-P - should guess list of available loggers?
+FORCE-CURRENT-LINE-P - if true text will be selected under current
+line without any smart calculations."
 
-  (let* ((insert-line-number (turbo-log--python-find-insert-pos current-line-number prev-line-text))
+  (let* ((insert-line-number (if force-current-line-p
+                                 current-line-number
+                               (turbo-log--python-find-insert-pos current-line-number prev-line-text)))
          (meta-info (turbo-log--format-meta-info insert-line-number))
          (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
          (turbo-log--message
@@ -310,15 +318,18 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
                          (t (ignore))))
                  (+ (line-number-at-pos) 1)))))))
 
-(defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text multiple-logger-p)
+(defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
   "Print message for golang mode.
-
 CURRENT-LINE-NUMBER - line number under cursor
 FORMATTED-SELECTED-TEXT - formatted text without space at start position
 PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?"
+MULTIPLE-LOGGER-P - should guess list of available loggers?
+FORCE-CURRENT-LINE-P - if true text will be selected under
+current line without any smart calculations."
 
-  (let* ((insert-line-number (turbo-log--golang-find-insert-pos current-line-number prev-line-text))
+  (let* ((insert-line-number (if force-current-line-p
+                                 current-line-number
+                               (turbo-log--golang-find-insert-pos current-line-number prev-line-text)))
          (meta-info (turbo-log--format-meta-info insert-line-number))
          (normalized-code formatted-selected-text)
          (turbo-log--message
@@ -352,18 +363,20 @@ MULTIPLE-LOGGER-P - should guess list of available loggers?"
       (progn (message "Logger for mode %s is not found" major-mode)
              nil))))
 
-(defun turbo-log--handle-logger (logger-func &optional multiple-logger-p)
+(defun turbo-log--handle-logger (logger-func &optional multiple-logger-p past-from-clipboard-p)
   "Common entrypoint for all loggers by provided LOGGER-FUNC.
-MULTIPLE-LOGGER-P allow to choose logger from list interactively."
+MULTIPLE-LOGGER-P allow to choose logger from list interactively.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (let* ((current-line-number (turbo-log--get-current-line-number))
-         (raw-selected-text (turbo-log--get-selected-text))
+         (raw-selected-text (if past-from-clipboard-p (current-kill 0 t) (turbo-log--get-selected-text)))
          (formatted-selected-text (string-trim raw-selected-text))
          (prev-line-text (turbo-log--get-line-text (- current-line-number 1))))
     (funcall logger-func
              current-line-number
              formatted-selected-text
              prev-line-text
-             multiple-logger-p)))
+             multiple-logger-p
+             past-from-clipboard-p)))
 
 
 (defun turbo-log--join-loggers-for-regexp (loggers)
@@ -427,23 +440,25 @@ LOG-TYPE can be 'commented 'uncommented 'both."
       (forward-line -1))))
 
 ;;;###autoload
-(defun turbo-log-print ()
-  "Log selected region for current major mode."
+(defun turbo-log-print (&optional past-from-clipboard-p)
+  "Log selected region for current major mode.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (let* ((logger-list (turbo-log--choose-mode))
          (logger (cdr logger-list)))
     (if logger
-        (turbo-log--handle-logger logger t))))
+        (turbo-log--handle-logger logger t past-from-clipboard-p))))
 
 ;;;###autoload
-(defun turbo-log-print-immediately ()
-  "Log selected region for current major mode without ask a logger from list."
+(defun turbo-log-print-immediately (&optional past-from-clipboard-p)
+  "Log selected region for current major mode without ask a logger from list.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (save-excursion
     (let* ((logger-list (turbo-log--choose-mode))
            (logger (cdr logger-list)))
       (if logger
-          (turbo-log--handle-logger logger)))))
+          (turbo-log--handle-logger logger nil past-from-clipboard-p)))))
 
 ;;;###autoload
 (defun turbo-log-comment-all-logs ()
@@ -475,6 +490,25 @@ LOG-TYPE can be 'commented 'uncommented 'both."
     (goto-char (point-min))
     (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
       (turbo-log--handle-log-line 'kill-whole-line))))
+
+;;;###autoload
+(defun turbo-log-paste-as-logger ()
+  "Past text from clipboard as logged text."
+  (interactive)
+  (end-of-line)
+  (turbo-log-print t)
+  (forward-line)
+  (end-of-line))
+
+;;;###autoload
+(defun turbo-log-paste-as-logger-immediately ()
+  "Past text from clipboard as logged text immediately."
+  (interactive)
+  (end-of-line)
+  (turbo-log-print-immediately t)
+  (forward-line)
+  (end-of-line))
+
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
