@@ -1,4 +1,4 @@
-[[https://github.com/Artawower/turbo-log/actions][https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg]]
+[[https://github.com/Artawower/turbo-log/actions][https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg]] [[https://wakatime.com/badge/github/Artawower/turbo-log.svg]]
 
 * Turbo log - fast logging selected line or region
 This project inspired by similar package for [[https://marketplace.visualstudio.com/items?itemName=ChakrounAnas.turbo-console-log][vs-code - turbo-console-log]], and provided functionality for fast log message inserting under current line.
@@ -14,6 +14,8 @@ It works for *js-mode, typescript-mode, go-mode and python*.
          ("C-s-i" . turbo-log-print-immediately)
          ("C-s-h" . turbo-log-comment-all-logs)
          ("C-s-s" . turbo-log-uncomment-all-logs)
+         ("C-s-[" . turbo-log-paste-as-logger)
+         ("C-s-]" . turbo-log-paste-as-logger-immediately)
          ("C-s-d" . turbo-log-delete-all-logs))
   :config
   (setq turbo-console--prefix "✰"))
@@ -28,6 +30,8 @@ It works for *js-mode, typescript-mode, go-mode and python*.
          ("C-s-i" . turbo-log-print-immediately)
          ("C-s-h" . turbo-log-comment-all-logs)
          ("C-s-s" . turbo-log-uncomment-all-logs)
+         ("C-s-[" . turbo-log-paste-as-logger)
+         ("C-s-]" . turbo-log-paste-as-logger-immediately)
          ("C-s-x" . turbo-log-delete-all-logs))
   :config
   (setq turbo-console--prefix "✰"))
@@ -55,7 +59,7 @@ Disable semicolon for ecmascript
 #+END_SRC
 
 
-** Plans [14/19]
+** Plans [15/19]
 + [X] Typescript support
 + [X] Javascript support
 + [X] Python support
@@ -74,4 +78,4 @@ Disable semicolon for ecmascript
 + [ ] Universal logger for other languages without additional logic
 + [ ] Add log moving before if statement
 + [ ] Refactor code.
-+ [ ] Paste variable inside logger!
++ [X] Paste variable inside logger!
