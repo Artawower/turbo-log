@@ -39,28 +39,36 @@
   :group 'turbo-log
   :type 'string)
 
+(setq turbo-log-msg-template "\"%s: \"")
+;; "Default format string for loggers.")
+;; :group 'turbo-log
+;; :type 'string)
+
 (setq turbo-log--default-ecmascript-config
-  '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-    :post-insert-hooks (prettier-prettify lsp)))
+      '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+        :msg-template "'%s'"
+        :log-prefix ">> "
+        ;; :post-insert-hooks (prettier-prettify)
+        ))
 
 (setq turbo-log-loggers
-  `((typescript-mode ,turbo-log--default-ecmascript-config)
-    (js-mode ,turbo-log--default-ecmascript-config)
-    (js2-mode ,turbo-log--default-ecmascript-config)
-    (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
-    (rjsx-mode ,turbo-log--default-ecmascript-config)
-    (ng2-ts-mode ,turbo-log--default-ecmascript-config)
-    (rjsx-mode ,turbo-log--default-ecmascript-config)
-    (web-mode ,turbo-log--default-ecmascript-config)
-    (vue-mode ,turbo-log--default-ecmascript-config)
-    (rust-mode (:loggers ("println!(%s);")))
-    (rustic-mode (:loggers ("println!(%s);" "{}")))
-    (python-mode (:loggers ("print(%s)")))
-    (go-mode (:loggers ("fmt.Println(%s)"
-                        ("fmt.Printf(%s)" "%v"))))))
-  ;; "Mode/config pairs."
-  ;; :group 'turbo-log
-  ;; :type 'string)
+      `((typescript-mode ,turbo-log--default-ecmascript-config)
+        (js-mode ,turbo-log--default-ecmascript-config)
+        (js2-mode ,turbo-log--default-ecmascript-config)
+        (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
+        (rjsx-mode ,turbo-log--default-ecmascript-config)
+        (ng2-ts-mode ,turbo-log--default-ecmascript-config)
+        (rjsx-mode ,turbo-log--default-ecmascript-config)
+        (web-mode ,turbo-log--default-ecmascript-config)
+        (vue-mode ,turbo-log--default-ecmascript-config)
+        (rust-mode (:loggers ("println!(%s);")))
+        (rustic-mode (:loggers ("println!(%s);" "{}")))
+        (python-mode (:loggers ("print(%s)")))
+        (go-mode (:loggers ("fmt.Println(%s)"
+                            ("fmt.Printf(%s)" " %v"))))))
+;; "Mode/config pairs."
+;; :group 'turbo-log
+;; :type 'string)
 
 (defcustom turbo-log-include-buffer-name t
   "Include current buffer name to log message."
@@ -139,11 +147,11 @@
 
 (setq turbo-log--top-level-structures
       '(function class program statement_block return_statement if_statement class_declaration
-                 source_file block array expression_list variable_declarator function_declaration assignment
+                 source_file block array variable_declarator function_declaration assignment
                  function_definition short_var_declaration def arrow_function method_definition))
 ;; "Top level structure for detecting paste place.")
 
-(setq turbo-log--nodes-for-end-position-inserting '(array expression_list variable_declarator assignment short_var_declaration))
+(setq turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration))
 ;; "Node types for inserting logger after end position.")
 
 (setq turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function))
@@ -191,7 +199,7 @@ Insert LINE-NUMBER and buffer name."
 
   (let ((line-number (concat "[line " (format "%s" line-number) "]")))
     (if turbo-log--include-buffer-name
-        (concat line-number "[" (buffer-name) "] " turbo-log--prefix " ")
+        (concat line-number "[" (buffer-name) "]")
       (concat line-number " " turbo-log--prefix " "))))
 
 (defun turbo-log--find-next-block-statement (parent-node)
@@ -260,37 +268,38 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (save-excursion
     (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
            (loggers (plist-get logger-meta :loggers))
-           (logger-config (if force-select-first-logger-p
-                              (car loggers)
-                            (completing-read "Choose logger: " loggers)))
-           (consistent-logger-config-p (consp logger-config))
-           (logger (if consistent-logger-config-p
-                       (car logger-config)
-                     logger-config))
-           (format-string (if consistent-logger-config-p
-                              (car (cdr logger-config))
-                            ""))
-           (max-line-length (plist-get logger-meta :max-length))
-           ;; (multiline-p (and max-line-length (> (length log-message) max-line-length)))
-           ;; (line-break (if multiline-p "\n" ""))
+           (logger (if force-select-first-logger-p
+                       (car loggers)
+                     (completing-read "Choose logger: " loggers)))
+           (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
+           ;; (qwe (progn
+           ;;        (message "Selected logger: %s | %s, %s > logger-config: %s" (type-of logger) logger consistent-logger-config-p logger-config)))
+           (msg-template (or (plist-get logger-meta :msg-template) turbo-log-msg-template))
+           (log-prefix)
            (meta-info (turbo-log--format-meta-info insert-position))
-           (content-between-brackets (concat "\"" meta-info
-                                             log-message ": \", "))
-
-           (turbo-log-message (format logger (concat content-between-brackets log-message)))
-           (turbo-log-messages `(,turbo-log-message))
+           (log-info-text (format msg-template (concat meta-info
+                                                       log-message
+                                                       variable-format-template)))
+           (log-msg (format logger (concat log-info-text ", " log-message)))
+           (log-msgs `(,log-msg))
            (post-insert-hooks (plist-get logger-meta :post-insert-hooks)))
-           ;; (turbo-log-messages
-           ;;  `(,(concat logger "(" line-break)
-           ;;    ,(concat "\"" content-between-brackets line-break)
-           ;;    ;; TODO: normalized code here
-           ;;    ,(concat log-message line-break)
-           ;;    ,(concat ")" ))))
 
-      (message "Selected logger: %s | %s" logger-meta logger)
+      (message "logger-typs: %s\n logger: %s\n loggers-type:%s\n loggers: %s\n"
+               (type-of logger)
+               logger
+               (type-of loggers)
+               loggers)
+      ;; (turbo-log-messages
+      ;;  `(,(concat logger "(" line-break)
+      ;;    ,(concat "\"" content-between-brackets line-break)
+      ;;    ;; TODO: normalized code here
+      ;;    ,(concat log-message line-break)
+      ;;    ,(concat ")" ))))
+
+      ;; (message "Selected logger: %s | %s | %s" logger-config logger loggers)
       (turbo-log--goto-line insert-position)
       (insert "\n")
-      (turbo-log--insert-with-indent insert-position turbo-log-messages)
+      (turbo-log--insert-with-indent insert-position log-msgs)
 
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
