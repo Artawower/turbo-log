@@ -33,15 +33,15 @@
 (require 'simple)
 (require 'tree-sitter)
 
-(setq turbo-log-msg-format-template "\"TCL: %s\"")
-;; "Template for formatting entire log message"
-;; :group 'turbo-log
-;; :type 'string)
-;;
-(setq turbo-log-payload-format-template " %s: ")
-;; "Template for formatting payload info (current selected region or clipboard)"
-;; :group 'turbo-log
-;; :type 'string)
+(defcustom turbo-log-msg-format-template "\"TCL: %s\""
+  "Template for formatting entire log message"
+  :group 'turbo-log
+  :type 'string)
+
+(setq turbo-log-payload-format-template "%s: ")
+  ;; "Template for formatting payload info (current selected region or clipboard)"
+  ;; :group 'turbo-log
+  ;; :type 'string)
 
 (defcustom turbo-log-buffer-name-format-template "[%s]"
   "Template for formatting buffer name.
@@ -52,9 +52,7 @@ Will not be visible when its nil."
 (setq turbo-log--default-ecmascript-config
       '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
         :msg-format-template "'%s'"
-        :log-prefix ">> "
-        ;; :post-insert-hooks (prettier-prettify)
-        ))
+        :post-insert-hooks (prettier-prettify)))
 
 (setq turbo-log-loggers
       `((typescript-mode ,turbo-log--default-ecmascript-config)
@@ -215,9 +213,9 @@ Insert LINE-NUMBER and buffer name."
 (defun turbo-log--find-next-block-statement (parent-node)
   "Find next block statement from current line by PARENT-NODE."
   (message (concat "\n" (make-string 120 ?')))
-  (let ((cursor (tsc-make-cursor parent-node))
+  (let* ((cursor (tsc-make-cursor parent-node))
         (current-node parent-node)
-        (current-type (tsc-node-type node))
+        (current-type (tsc-node-type current-node))
         (cursor-res t))
 
     (while (or (not (member current-type '(block program statement_block source_file :))) (not cursor-res))
@@ -327,8 +325,8 @@ When PAST-FROM-CLIPBOARD-P provided it will be inserted from clipboard."
   "Get real point.
 Cause evil change `point' function value by 1
 inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
-      (- (point) 1)
-    (point)))
+                         (- (point) 1)
+                       (point)))
 
 (defun turbo-log--line-with-empty-body-p (line-number)
   "Return t when LINE-NUMBER line is function with empty body."
