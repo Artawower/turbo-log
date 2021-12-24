@@ -275,10 +275,11 @@ Every text will be put at new line relative LINE-NUMBER"
         (setq line-number (+ line-number 1))))
     (indent-region start-selection (point))))
 
-(defun turbo-log--insert-logger-by-mode (insert-line-number log-message &optional force-select-first-logger-p)
+(defun turbo-log--insert-logger-by-mode (insert-line-number log-message &optional force-select-first-logger-p include-close-bracket-p)
   "Insert LOG-MESSAGE by mode into INSERT-LINE-NUMBER.
 When FORCE-SELECT-FIRST-LOGGER-P is true first logger will be selected.
-Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
+when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
 
   (save-excursion
     (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
@@ -296,19 +297,21 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
                                                        (format payload-format-template log-message)
                                                        variable-format-template)))
            (log-msg (format logger (concat log-info-text ", " log-message)))
-           (log-msgs `(,log-msg))
+           (close-bracket (if include-close-bracket-p "\n}" ""))
+           (log-msgs `(,log-msg ,close-bracket))
            (post-insert-hooks (plist-get logger-meta :post-insert-hooks)))
 
-      (message "logger-typs: %s\n logger: %s\n loggers-type:%s\n loggers: %s\n"
-               (type-of logger)
-               logger
-               (type-of loggers)
-               loggers)
+      ;; (message "logger-typs: %s\n logger: %s\n loggers-type:%s\n loggers: %s\n"
+      ;;          (type-of logger)
+      ;;          logger
+      ;;          (type-of loggers)
+      ;;          loggers)
 
       (turbo-log--goto-line insert-line-number)
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
+      (message "%s : === %s" log-msgs include-close-bracket-p)
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
         (when (functionp hook)
@@ -377,7 +380,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
 
     (when insert-line-number
       (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-      (turbo-log--insert-logger-by-mode insert-line-number log-message past-from-clipboard-p))))
+      (turbo-log--insert-logger-by-mode insert-line-number log-message past-from-clipboard-p previous-line-empty-body-p))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
