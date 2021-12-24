@@ -1,4 +1,3 @@
-
 ;;; turbo-log.el --- The simple package for fast log selected region                     -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021 Artur Yaroshenko
@@ -170,8 +169,8 @@ Will not be visible when its nil."
   "Nodes that not allowed to be inserted as logger.")
 
 (defun turbo-log--find-top-level-node (node)
-  "Find top level structure for current NODE. Could return
-function class program statement_block or nil."
+  "Find top level structure for current NODE.
+Could return function class program statement_block or nil."
   (let ((cursor (tsc-make-cursor node))
         (current-node node)
         (current-type (tsc-node-type node)))
@@ -251,7 +250,7 @@ Insert LINE-NUMBER and buffer name."
     (+ (line-number-at-pos) 1) ))
 
 (defun turbo-log--node-end-position-insert-p (node-type parent-node)
-  "Return t when node type is variable declaration."
+  "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node."
   (when (member node-type turbo-log--nodes-for-end-position-inserting)
     (goto-char (tsc-node-end-position parent-node))
     (+ (line-number-at-pos) 1)))
@@ -315,8 +314,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
         (when (functionp hook)
-          (funcall hook)))
-      )))
+          (funcall hook))))))
 
 (defun turbo-log--get-log-text (&optional past-from-clipboard-p)
   "Return text that should be inserted inside logger.
@@ -326,9 +324,9 @@ When PAST-FROM-CLIPBOARD-P provided it will be inserted from clipboard."
                  (buffer-substring (region-beginning) (region-end)))))
 
 (defun turbo-log--get-real-point ()
-  "Get real point. Cause evil change `point' function value by 1
-inside `region-p'"
-  (if (and (bound-and-true-p evil-mode) (region-active-p))
+  "Get real point.
+Cause evil change `point' function value by 1
+inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
       (- (point) 1)
     (point)))
 
@@ -355,7 +353,7 @@ inside `region-p'"
         insert-line-number))))
 
 (defun turbo-log--remove-closed-bracket (line-number)
-  "Remove } from end of line."
+  "Remove } from end of line at LINE-NUMBER position."
   (save-excursion
     (turbo-log--goto-line (- line-number 1))
     (beginning-of-line)
@@ -381,7 +379,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
 
     (when insert-line-number
       (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-      (turbo-log--insert-logger-by-mode insert-line-number log-message))))
+      (turbo-log--insert-logger-by-mode insert-line-number log-message past-from-clipboard-p))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
