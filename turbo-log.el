@@ -334,7 +334,8 @@ inside `region-p'"
 
 (defun turbo-log--line-with-empty-body-p (line-number)
   "Return t when LINE-NUMBER line is function with empty body."
-  (string-match "[^\']+{[[:blank:]]*}[$ ]*" (turbo-log--get-line-text line-number)))
+  (save-excursion
+    (string-match "[^\']+{[[:blank:]]*}[$ ]*" (turbo-log--get-line-text line-number))))
 
 (defun turbo-log--find-insert-line-number ()
   "Find insert position."
@@ -355,10 +356,11 @@ inside `region-p'"
 
 (defun turbo-log--remove-closed-bracket (line-number)
   "Remove } from end of line."
-  (turbo-log--goto-line (- line-number 1))
-  (beginning-of-line)
-  (search-forward-regexp "}[[:blank:]]*")
-  (replace-match ""))
+  (save-excursion
+    (turbo-log--goto-line (- line-number 1))
+    (beginning-of-line)
+    (search-forward-regexp "}[[:blank:]]*")
+    (replace-match "")))
 
 
 
@@ -373,14 +375,13 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
     (switch-to-buffer "*Messages*")
     (erase-buffer))
 
-  (save-excursion
-    (let* ((insert-line-number (turbo-log--find-insert-line-number))
-           (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1))))
-           (log-message (turbo-log--get-log-text)))
+  (let* ((insert-line-number (turbo-log--find-insert-line-number))
+         (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1))))
+         (log-message (turbo-log--get-log-text)))
 
-        (when insert-line-number
-          (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-          (turbo-log--insert-logger-by-mode insert-line-number log-message)))))
+    (when insert-line-number
+      (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
+      (turbo-log--insert-logger-by-mode insert-line-number log-message))))
 
-  (provide 'turbo-log)
+(provide 'turbo-log)
 ;;; turbo-log.el ends here
