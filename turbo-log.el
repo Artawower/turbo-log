@@ -84,23 +84,6 @@ Will not be visible when its nil."
 
 ;;;; Common functions
 ;; ;;;###autoload
-;; (defun turbo-log-print (&optional past-from-clipboard-p)
-;;   "Log selected region for current major mode.
-;; Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
-;;   (interactive)
-
-;;   )
-
-;; ;;;###autoload
-;; (defun turbo-log-print-immediately (&optional past-from-clipboard-p)
-;;   "Log selected region for current major mode without ask a logger from list.
-;; Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
-;;   (interactive)
-;;   (save-excursion
-;;     (let* ((logger-list (turbo-log--choose-mode))
-;;            (logger (cdr logger-list)))
-;;       (if logger
-;;           (turbo-log--handle-logger logger nil past-from-clipboard-p)))))
 
 ;; ;;;###autoload
 ;; (defun turbo-log-comment-all-logs ()
@@ -266,7 +249,11 @@ Every text will be put at new line relative LINE-NUMBER"
         (setq line-number (+ line-number 1))))
     (indent-region start-selection (point))))
 
-(defun turbo-log--insert-logger-by-mode (insert-line-number log-message &optional force-select-first-logger-p include-close-bracket-p)
+(defun turbo-log--insert-logger-by-mode (insert-line-number
+                                         log-message
+                                         &optional
+                                         force-select-first-logger-p
+                                         include-close-bracket-p)
   "Insert LOG-MESSAGE by mode into INSERT-LINE-NUMBER.
 When FORCE-SELECT-FIRST-LOGGER-P is true first logger will be selected.
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
@@ -355,7 +342,7 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
 
 
 ;;;###autoload
-(defun turbo-log-print (&optional past-from-clipboard-p)
+(defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
   "Log selected region for current major mode.
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
@@ -364,13 +351,21 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
     (switch-to-buffer "*Messages*")
     (erase-buffer))
 
-  (let* ((insert-line-number (turbo-log--find-insert-line-number))
+  (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
          (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1))))
-         (log-message (turbo-log--get-log-text)))
+         (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
     (when insert-line-number
       (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-      (turbo-log--insert-logger-by-mode insert-line-number log-message past-from-clipboard-p previous-line-empty-body-p))))
+      (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p))))
+
+
+;;;###autoload
+(defun turbo-log-print-immediately ()
+  "Log selected region for current major mode without ask a logger from list.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
+  (interactive)
+  (turbo-log-print t nil))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
