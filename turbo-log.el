@@ -43,6 +43,12 @@
   ;; :group 'turbo-log
   ;; :type 'string)
 
+(defcustom turbo-log-line-number-format-template "[line %s]"
+  "Template for formatting line number.
+Line number will not be shown when value is nil."
+  :group 'turbo-log
+  :type 'string)
+
 (defcustom turbo-log-buffer-name-format-template "[%s]"
   "Template for formatting buffer name.
 Will not be visible when its nil."
@@ -72,11 +78,6 @@ Will not be visible when its nil."
 ;; "Mode/config pairs."
 ;; :group 'turbo-log
 ;; :type 'string)
-
-(defcustom turbo-log-include-buffer-name t
-  "Include current buffer name to log message."
-  :group 'turbo-log
-  :type 'boolean)
 
 
 ;;;; Common functions
@@ -200,10 +201,9 @@ Could return function class program statement_block or nil."
   "Format meta information by provided config.
 Insert LINE-NUMBER and buffer name."
 
-  (let ((line-number (concat "[line " (format "%s" line-number) "]")))
-    (if turbo-log--include-buffer-name
-        (concat line-number "[" (buffer-name) "]")
-      line-number)))
+  (let ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
+        (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
+      (concat line-number buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
   "Get text from LINE-NUMBER under point."
