@@ -60,7 +60,8 @@ Will not be visible when its nil."
 (setq turbo-log--default-ecmascript-config
       '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
         :msg-format-template "'%s'"
-        :post-insert-hooks (prettier-prettify)))
+        ;; :post-insert-hooks (prettier-prettify)
+        ))
 
 (setq turbo-log-loggers
       `((typescript-mode ,turbo-log--default-ecmascript-config)
@@ -116,23 +117,6 @@ Will not be visible when its nil."
 ;;     (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
 ;;       (turbo-log--handle-log-line 'kill-whole-line))))
 
-;; ;;;###autoload
-;; (defun turbo-log-paste-as-logger ()
-;;   "Past text from clipboard as logged text."
-;;   (interactive)
-;;   (end-of-line)
-;;   (turbo-log-print t)
-;;   (forward-line)
-;;   (end-of-line))
-
-;; ;;;###autoload
-;; (defun turbo-log-paste-as-logger-immediately ()
-;;   "Past text from clipboard as logged text immediately."
-;;   (interactive)
-;;   (end-of-line)
-;;   (turbo-log-print-immediately t)
-;;   (forward-line)
-;;   (end-of-line))
 
 (setq turbo-log--top-level-structures
       '(function class program statement_block return_statement if_statement class_declaration
@@ -352,7 +336,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
     (erase-buffer))
 
   (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
-         (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1))))
+         (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
          (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
     (when insert-line-number
@@ -366,6 +350,24 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (turbo-log-print t nil))
+
+;;;###autoload
+(defun turbo-log-paste-as-logger ()
+  "Past text from clipboard as logged text."
+  (interactive)
+  (end-of-line)
+  (forward-line)
+  (turbo-log-print nil t)
+  (end-of-line))
+
+;; ;;;###autoload
+(defun turbo-log-paste-as-logger-immediately ()
+  "Past text from clipboard as logged text immediately."
+  (interactive)
+  (end-of-line)
+  (forward-line)
+  (turbo-log-print t t)
+  (end-of-line))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
