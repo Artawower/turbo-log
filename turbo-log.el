@@ -25,6 +25,8 @@
 ;; This package provides functionality for fast line/region logging with additional meta information
 ;; like line number, buffer name, and some info from syntax table.
 ;; Out of the box it works with golang, python, js and typescript languages.
+;; This package needs the https://emacs-tree-sitter.github.io/tree-sitter-mode/
+
 
 ;;; Code:
 
@@ -39,9 +41,9 @@
   :type 'string)
 
 (setq turbo-log-payload-format-template "%s: ")
-  ;; "Template for formatting payload info (current selected region or clipboard)"
-  ;; :group 'turbo-log
-  ;; :type 'string)
+;; "Template for formatting payload info (current selected region or clipboard)"
+;; :group 'turbo-log
+;; :type 'string)
 
 (defcustom turbo-log-line-number-format-template "[line %s]"
   "Template for formatting line number.
@@ -203,7 +205,7 @@ Insert LINE-NUMBER and buffer name."
 
   (let ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
-      (concat line-number buffer-name)))
+    (concat line-number buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
   "Get text from LINE-NUMBER under point."
@@ -214,9 +216,9 @@ Insert LINE-NUMBER and buffer name."
   "Find next block statement from current line by PARENT-NODE."
   (message (concat "\n" (make-string 120 ?')))
   (let* ((cursor (tsc-make-cursor parent-node))
-        (current-node parent-node)
-        (current-type (tsc-node-type current-node))
-        (cursor-res t))
+         (current-node parent-node)
+         (current-type (tsc-node-type current-node))
+         (cursor-res t))
 
     (while (or (not (member current-type '(block program statement_block source_file :))) (not cursor-res))
 
@@ -233,19 +235,8 @@ Insert LINE-NUMBER and buffer name."
       (when current-node
         (setq current-type (tsc-node-type current-node))))
 
-    (message (concat (make-string 120 ?') "\n"))
-    ;; TODO: remote it
-    (message "FOUND FINISH SMB: %s | POS: [%s - %s]" (tsc-node-type current-node) (tsc-node-start-position current-node) (tsc-node-end-position current-node))
-
-    ;; TODO: Separeted function for finding function () {}
-    (eq (line-number-at-pos (tsc-node-end-position current-node))
-        (line-number-at-pos (tsc-node-start-position current-node)))
-    ;; (message "INSERTED LINE NUMBER: %s" (- (line-number-at-pos) 1))
     (goto-char (tsc-node-start-position current-node))
-    ;; (+ (line-number-at-pos) 1)
-    ;; (eq (line-number-at-pos (tsc-node-end-position current-node))
-    ;;                                    (line-number-at-pos (tsc-node-start-position current-node)))
-    (+ (line-number-at-pos) 1) ))
+    (+ (line-number-at-pos) 1)))
 
 (defun turbo-log--node-end-position-insert-p (node-type parent-node)
   "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node."
@@ -363,7 +354,6 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
 
 
 
-;; https://emacs-tree-sitter.github.io/tree-sitter-mode/
 ;;;###autoload
 (defun turbo-log-print (&optional past-from-clipboard-p)
   "Log selected region for current major mode.
