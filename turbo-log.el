@@ -75,7 +75,7 @@ Will not be visible when its nil."
         (vue-mode ,turbo-log--default-ecmascript-config)
         (rust-mode (:loggers ("println!(%s);")))
         (rustic-mode (:loggers ("println!(%s);" "{}")))
-        (python-mode (:loggers ("print(%s)")))
+        (python-mode (:loggers ("print(%s)") :comment-string "#"))
         (go-mode (:loggers ("fmt.Println(%s)"
                             ("fmt.Printf(%s)" " %v"))))))
 ;; "Mode/config pairs."
@@ -243,6 +243,7 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
+      (message "LOGGERS META: %s" loggers-meta)
       (message "%s : === %s" log-msgs include-close-bracket-p)
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
@@ -319,7 +320,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
 COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
   (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
          (loggers (plist-get logger-meta :loggers))
-         (comment-string (or (plist-get logger-meta :comment-string) "//"))
+         (comment-string (or (plist-get logger-meta :comment-string) turbo-log--comment-string))
          (safety-comment-string (string-replace "/" "\\/" comment-string))
          (log-prefix (cond ((eq comment-type 'uncommented) "^[[:blank:]]+")
                            ((eq comment-type 'commented) (concat "^[[:blank:]]+" safety-comment-string "[[:blank:]]+"))
@@ -330,6 +331,8 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
 
     (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
 
+    (message "logger-meta: %s" logger-meta)
+    (message "ITS A STRING FOR SEARCH COMMENT: %s" (string-join regexps "\\|"))
     (string-join regexps "\\|")))
 
 (defun turbo-log--handle-comments (comment-type func)
