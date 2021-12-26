@@ -84,40 +84,6 @@ Will not be visible when its nil."
 
 
 ;;;; Common functions
-;; ;;;###autoload
-
-;; ;;;###autoload
-;; (defun turbo-log-comment-all-logs ()
-;;   "Hide all log messages made by turbo-log."
-;;   (interactive)
-;;   (save-excursion
-;;     (goto-char (point-min))
-;;     (while (search-forward-regexp (turbo-log--build-log-regexp 'uncommented) nil t)
-;;       (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
-;;       (search-forward ")" nil t)
-;;       (forward-line))))
-
-;; ;;;###autoload
-;; (defun turbo-log-uncomment-all-logs ()
-;;   "Show all comments made by turbo-log."
-;;   (interactive)
-;;   (save-excursion
-;;     (goto-char (point-min))
-;;     (while (search-forward-regexp (turbo-log--build-log-regexp 'commented) nil t)
-;;       (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
-;;       (search-forward ")" nil t)
-;;       (forward-line))))
-
-;; ;;;###autoload
-;; (defun turbo-log-delete-all-logs ()
-;;   "Delete all turbo-log loggers."
-;;   (interactive)
-;;   (save-excursion
-;;     (goto-char (point-min))
-;;     (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
-;;       (turbo-log--handle-log-line 'kill-whole-line))))
-
-
 (setq turbo-log--top-level-structures
       '(function class program statement_block return_statement if_statement class_declaration
                  source_file block array variable_declarator function_declaration assignment
@@ -135,6 +101,9 @@ Will not be visible when its nil."
 
 (defconst turbo-log--nodes-ignored '(class_declaration)
   "Nodes that not allowed to be inserted as logger.")
+
+(defconst turbo-log--comment-string "//"
+  "Common string for find comments.")
 
 (defun turbo-log--find-top-level-node (node)
   "Find top level structure for current NODE.
@@ -166,6 +135,7 @@ Could return function class program statement_block or nil."
   "Move cursor to provided LINE-NUMBER."
   (forward-line (- line-number (line-number-at-pos))))
 
+;; TODO: replace to build enitre log content
 (defun turbo-log--format-meta-info (line-number)
   "Format meta information by provided config.
 Insert LINE-NUMBER and buffer name."
@@ -344,6 +314,38 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
       (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p))))
 
 
+(defun turbo-log--build-log-regexp (comment-type)
+  "Build regexp for finding loggers made by turbo-log.
+COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
+  (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
+         (loggers (plist-get logger-meta :loggers))
+         (comment-string (or (plist-get logger-meta :comment-string) "//"))
+         (safety-comment-string (string-replace "/" "\\/" comment-string))
+         (log-prefix (cond ((eq comment-type 'uncommented) "^[[:blank:]]+")
+                           ((eq comment-type 'commented) (concat "^[[:blank:]]+" safety-comment-string "[[:blank:]]+"))
+                           ((eq comment-type 'both) (concat "^[[:blank:]]+" (format "\\(%s\\)?" safety-comment-string) "[[:blank:]]+"))))
+         (regexps '()))
+    (dolist (l loggers)
+      (push (concat log-prefix (format l "[^\'\(\)]+")";?") regexps))
+
+    (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
+
+    (string-join regexps "\\|")))
+
+(defun turbo-log--handle-comments (comment-type func)
+  "Apply operation for found line with logs.
+COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'
+FUNC - function that will accept start and end point of found log line."
+  (interactive)
+  (save-excursion
+    (goto-char (point-min))
+    (let* ((start-pos))
+    (while (setq start-pos (re-search-forward (turbo-log--build-log-regexp comment-type) nil t))
+      (funcall func (match-beginning 0) start-pos)
+      ;; (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
+      ;; (comment-or-uncomment-region (match-beginning 0) start-pos)
+      (forward-line)))))
+
 ;;;###autoload
 (defun turbo-log-print-immediately ()
   "Log selected region for current major mode without ask a logger from list.
@@ -360,7 +362,7 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (turbo-log-print nil t)
   (end-of-line))
 
-;; ;;;###autoload
+;;;###autoload
 (defun turbo-log-paste-as-logger-immediately ()
   "Past text from clipboard as logged text immediately."
   (interactive)
@@ -369,5 +371,23 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (turbo-log-print t t)
   (end-of-line))
 
+;;;###autoload
+(defun turbo-log-comment-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'uncommented 'comment-or-uncomment-region))
+
+;;;###autoload
+(defun turbo-log-uncomment-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'commented 'comment-or-uncomment-region))
+
+;;;###autoload
+(defun turbo-log-delete-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'both (lambda (start-point end-point)
+                                      (delete-region start-point (+ end-point 1)))))
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
