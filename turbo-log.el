@@ -40,10 +40,10 @@
   :group 'turbo-log
   :type 'string)
 
-(setq turbo-log-payload-format-template "%s: ")
-;; "Template for formatting payload info (current selected region or clipboard)"
-;; :group 'turbo-log
-;; :type 'string)
+(defcustom turbo-log-payload-format-template "%s: "
+  "Template for formatting payload info (current selected region or clipboard)"
+  :group 'turbo-log
+  :type 'string)
 
 (defcustom turbo-log-line-number-format-template "[line %s]"
   "Template for formatting line number.
@@ -57,44 +57,44 @@ Will not be visible when its nil."
   :group 'turbo-log
   :type 'string)
 
-(setq turbo-log--default-ecmascript-config
-      '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-        :msg-format-template "'TCL: %s'"
-        ;; :post-insert-hooks (prettier-prettify)
-        ))
+(defconst turbo-log--default-ecmascript-config
+  '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+    :msg-format-template "'TCL: %s'")
+  "Common configurations for ecmascript`s based modes.")
 
-(setq turbo-log-loggers
-      `((typescript-mode ,turbo-log--default-ecmascript-config)
-        (js-mode ,turbo-log--default-ecmascript-config)
-        (js2-mode ,turbo-log--default-ecmascript-config)
-        (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
-        (rjsx-mode ,turbo-log--default-ecmascript-config)
-        (ng2-ts-mode ,turbo-log--default-ecmascript-config)
-        (rjsx-mode ,turbo-log--default-ecmascript-config)
-        (web-mode ,turbo-log--default-ecmascript-config)
-        (vue-mode ,turbo-log--default-ecmascript-config)
-        (rust-mode (:loggers ("println!(%s);")))
-        (rustic-mode (:loggers ("println!(%s);" "{}")))
-        (python-mode (:loggers ("print(%s)") :comment-string "#"))
-        (go-mode (:loggers ("fmt.Println(%s)"
-                            ("fmt.Printf(%s)" " %v"))))))
-;; "Mode/config pairs."
-;; :group 'turbo-log
-;; :type 'string)
+(defcustom turbo-log-loggers
+  `((typescript-mode ,turbo-log--default-ecmascript-config)
+    (js-mode ,turbo-log--default-ecmascript-config)
+    (js2-mode ,turbo-log--default-ecmascript-config)
+    (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
+    (rjsx-mode ,turbo-log--default-ecmascript-config)
+    (ng2-ts-mode ,turbo-log--default-ecmascript-config)
+    (rjsx-mode ,turbo-log--default-ecmascript-config)
+    (web-mode ,turbo-log--default-ecmascript-config)
+    (vue-mode ,turbo-log--default-ecmascript-config)
+    (rust-mode (:loggers ("println!(%s);")))
+    (rustic-mode (:loggers ("println!(%s);" "{}")))
+    (python-mode (:loggers ("print(%s)") :comment-string "#"))
+    (go-mode (:loggers ("fmt.Println(%s)"
+                        ("fmt.Printf(%s)" " %v")))))
+  "Mode/config pairs."
+  :group 'turbo-log
+  :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
+
 
 
 ;;;; Common functions
-(setq turbo-log--top-level-structures
-      '(function class program statement_block return_statement if_statement class_declaration
-                 source_file block array variable_declarator function_declaration assignment
-                 function_definition short_var_declaration def arrow_function method_definition))
-;; "Top level structure for detecting paste place.")
+(defconst turbo-log--top-level-structures
+  '(function class program statement_block return_statement if_statement class_declaration
+             source_file block array variable_declarator function_declaration assignment
+             function_definition short_var_declaration def arrow_function method_definition)
+  "Top level structure for detecting paste place.")
 
-(setq turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration))
-;; "Node types for inserting logger after end position.")
+(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration)
+  "Node types for inserting logger after end position.")
 
-(setq turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function))
-;; "Node types that allow to insert logger next line.")
+(defconst turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function)
+  "Node types that allow to insert logger next line.")
 
 (defconst turbo-log--nodes-allowed-insert-previous-line '(return_statement if_statement)
   "Node types that allow to insert logger next line.")
@@ -108,8 +108,7 @@ Will not be visible when its nil."
 (defun turbo-log--find-top-level-node (node)
   "Find top level structure for current NODE.
 Could return function class program statement_block or nil."
-  (let ((cursor (tsc-make-cursor node))
-        (current-node node)
+  (let ((current-node node)
         (current-type (tsc-node-type node)))
     (while (not (member current-type turbo-log--top-level-structures))
 
