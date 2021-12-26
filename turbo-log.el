@@ -36,12 +36,12 @@
 (require 'tree-sitter)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
-  "Template for formatting entire log message"
+  "Template for formatting entire log message."
   :group 'turbo-log
   :type 'string)
 
 (defcustom turbo-log-payload-format-template "%s: "
-  "Template for formatting payload info (current selected region or clipboard)"
+  "Template for formatting payload info (current selected region or clipboard)."
   :group 'turbo-log
   :type 'string)
 
@@ -295,7 +295,8 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
 ;;;###autoload
 (defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
   "Log selected region for current major mode.
-Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
+INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
   ;; TODO: debug only
   (save-window-excursion
@@ -311,13 +312,12 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
       (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p))))
 
 (defun turbo-log--normilize-regexp (regexp)
-  "Shield regexp string."
+  "Screen REGEXP string."
   (dolist (p '(("/" "\\/")
                ("[" "\\\[")
                ("]" "\\\]")
                ("\"" "\\\"")
-               ("." "\.")
-               ))
+               ("." "\.")))
     (setq regexp (string-replace (car p) (cadr p) regexp)))
   regexp)
 
