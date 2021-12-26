@@ -59,7 +59,7 @@ Will not be visible when its nil."
 
 (setq turbo-log--default-ecmascript-config
       '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-        :msg-format-template "'%s'"
+        :msg-format-template "'TCL: %s'"
         ;; :post-insert-hooks (prettier-prettify)
         ))
 
@@ -279,7 +279,6 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
              (parent-node-type (car (cdr parent-node-type-pair)))
              (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node)))
 
-
         (message (make-string 80 ?-))
         (message "Result: %s" parent-node-type)
         (message "Insert pos: %s" insert-line-number)
@@ -293,8 +292,6 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
     (beginning-of-line)
     (search-forward-regexp "}[[:blank:]]*")
     (replace-match "")))
-
-
 
 ;;;###autoload
 (defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
@@ -314,25 +311,41 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
       (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
       (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p))))
 
+(defun turbo-log--normilize-regexp (regexp)
+  "Shield regexp string."
+  (dolist (p '(("/" "\\/")
+               ("[" "\\\[")
+               ("]" "\\\]")
+               ("\"" "\\\"")
+               ("." "\.")
+               ))
+    (setq regexp (string-replace (car p) (cadr p) regexp)))
+  regexp)
 
 (defun turbo-log--build-log-regexp (comment-type)
   "Build regexp for finding loggers made by turbo-log.
 COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
   (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
-         (loggers (plist-get logger-meta :loggers))
+         (loggers (mapcar
+                   (lambda (v) (if (consp v) (car v) v))
+                   (plist-get logger-meta :loggers)))
          (comment-string (or (plist-get logger-meta :comment-string) turbo-log--comment-string))
          (safety-comment-string (string-replace "/" "\\/" comment-string))
+         (msg-template (turbo-log--normilize-regexp (or (plist-get logger-meta :msg-format-template) turbo-log-msg-format-template)))
+         (line-number-formatter (or (plist-get logger-meta :line-number-format-template) turbo-log-line-number-format-template))
+         (line-number-info (and line-number-formatter (format (turbo-log--normilize-regexp line-number-formatter) "[0-9]+")))
+         (log-message (format msg-template (concat line-number-info "[^'\"]+")))
+
          (log-prefix (cond ((eq comment-type 'uncommented) "^[[:blank:]]+")
                            ((eq comment-type 'commented) (concat "^[[:blank:]]+" safety-comment-string "[[:blank:]]+"))
-                           ((eq comment-type 'both) (concat "^[[:blank:]]+" (format "\\(%s\\)?" safety-comment-string) "[[:blank:]]+"))))
+                           ((eq comment-type 'both) (concat "^[[:blank:]]+" (format "\\(%s\\)?" safety-comment-string) "[[:blank:]]*"))))
          (regexps '()))
+
     (dolist (l loggers)
-      (push (concat log-prefix (format l "[^\'\(\)]+")";?") regexps))
+      (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\)]+")) ";?") regexps))
 
     (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
-
-    (message "logger-meta: %s" logger-meta)
-    (message "ITS A STRING FOR SEARCH COMMENT: %s" (string-join regexps "\\|"))
+    (message "REGEXP: %s" (string-join regexps "\\|"))
     (string-join regexps "\\|")))
 
 (defun turbo-log--handle-comments (comment-type func)
@@ -343,11 +356,9 @@ FUNC - function that will accept start and end point of found log line."
   (save-excursion
     (goto-char (point-min))
     (let* ((start-pos))
-    (while (setq start-pos (re-search-forward (turbo-log--build-log-regexp comment-type) nil t))
-      (funcall func (match-beginning 0) start-pos)
-      ;; (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
-      ;; (comment-or-uncomment-region (match-beginning 0) start-pos)
-      (forward-line)))))
+      (while (setq start-pos (re-search-forward (turbo-log--build-log-regexp comment-type) nil t))
+        (funcall func (match-beginning 0) start-pos)
+        (forward-line)))))
 
 ;;;###autoload
 (defun turbo-log-print-immediately ()
