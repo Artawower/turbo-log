@@ -82,15 +82,13 @@ Will not be visible when its nil."
   :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
 
 
-
-;;;; Common functions
 (defconst turbo-log--top-level-structures
   '(function class program statement_block return_statement if_statement class_declaration
              source_file block array variable_declarator function_declaration assignment
-             function_definition short_var_declaration def arrow_function method_definition)
+             function_definition short_var_declaration def arrow_function method_definition expression_statement)
   "Top level structure for detecting paste place.")
 
-(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration)
+(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration expression_statement)
   "Node types for inserting logger after end position.")
 
 (defconst turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function)
@@ -104,6 +102,13 @@ Will not be visible when its nil."
 
 (defconst turbo-log--comment-string "//"
   "Common string for find comments.")
+
+(defmacro turbo-log--get-logger-config (logger-config key)
+  "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
+When value is nil config will be taken from global scope.
+I know that it's a magic. And huge evil. But i like it."
+  `(or (plist-get ,logger-config (symbol-value (intern (concatenate 'string ":" (symbol-name ',key)))))
+       (symbol-value (intern (concatenate 'string "turbo-log-" (symbol-name ',key))))))
 
 (defun turbo-log--find-top-level-node (node)
   "Find top level structure for current NODE.
@@ -221,8 +226,8 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
            (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
            ;; (qwe (progn
            ;;        (message "Selected logger: %s | %s, %s > logger-config: %s" (type-of logger) logger consistent-logger-config-p logger-config)))
-           (msg-template (or (plist-get logger-meta :msg-format-template) turbo-log-msg-format-template))
-           (payload-format-template (or (plist-get logger-meta :pyload-format-template) turbo-log-payload-format-template ))
+           (msg-template (turbo-log--get-logger-config logger-meta msg-format-template))
+           (payload-format-template (turbo-log--get-logger-config logger-meta payload-format-template))
            (meta-info (turbo-log--format-meta-info insert-line-number))
            (log-info-text (format msg-template (concat meta-info
                                                        (format payload-format-template log-message)
@@ -270,19 +275,18 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
 
 (defun turbo-log--find-insert-line-number ()
   "Find insert position."
-  (when (bound-and-true-p tree-sitter-mode)
-    (save-excursion
-      (let* ((node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
-             (parent-node-type-pair (turbo-log--find-top-level-node node))
-             (parent-node (car parent-node-type-pair))
-             (parent-node-type (car (cdr parent-node-type-pair)))
-             (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node)))
+  (save-excursion
+    (let* ((node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+           (parent-node-type-pair (turbo-log--find-top-level-node node))
+           (parent-node (car parent-node-type-pair))
+           (parent-node-type (car (cdr parent-node-type-pair)))
+           (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node)))
 
-        (message (make-string 80 ?-))
-        (message "Result: %s" parent-node-type)
-        (message "Insert pos: %s" insert-line-number)
-        (message (make-string 80 ?|))
-        insert-line-number))))
+      (message (make-string 80 ?-))
+      (message "Result: %s" parent-node-type)
+      (message "Insert pos: %s" insert-line-number)
+      (message (make-string 80 ?|))
+      insert-line-number)))
 
 (defun turbo-log--remove-closed-bracket (line-number)
   "Remove } from end of line at LINE-NUMBER position."
@@ -299,17 +303,19 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
   ;; TODO: debug only
-  (save-window-excursion
-    (switch-to-buffer "*Messages*")
-    (erase-buffer))
+  ;; (save-window-excursion
+  ;;   (switch-to-buffer "*Messages*")
+  ;;   (erase-buffer))
 
-  (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
-         (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
-         (log-message (turbo-log--get-log-text past-from-clipboard-p)))
+  (if (bound-and-true-p tree-sitter-mode)
+      (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
+             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
+             (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
-    (when insert-line-number
-      (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-      (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p))))
+        (when insert-line-number
+          (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
+          (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
+    (message "For turbo-log package you need to enable tree-sitter-mode.")))
 
 (defun turbo-log--normilize-regexp (regexp)
   "Screen REGEXP string."
@@ -328,10 +334,10 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
          (loggers (mapcar
                    (lambda (v) (if (consp v) (car v) v))
                    (plist-get logger-meta :loggers)))
-         (comment-string (or (plist-get logger-meta :comment-string) turbo-log--comment-string))
+         (comment-string (turbo-log--get-logger-config logger-meta comment-string))
          (safety-comment-string (string-replace "/" "\\/" comment-string))
-         (msg-template (turbo-log--normilize-regexp (or (plist-get logger-meta :msg-format-template) turbo-log-msg-format-template)))
-         (line-number-formatter (or (plist-get logger-meta :line-number-format-template) turbo-log-line-number-format-template))
+         (msg-template (turbo-log--normilize-regexp (turbo-log--get-logger-config logger-meta msg-format-template)))
+         (line-number-formatter (turbo-log--get-logger-config logger-meta line-number-format-template))
          (line-number-info (and line-number-formatter (format (turbo-log--normilize-regexp line-number-formatter) "[0-9]+")))
          (log-message (format msg-template (concat line-number-info "[^'\"]+")))
 
@@ -344,7 +350,6 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
       (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\)]+")) ";?") regexps))
 
     (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
-    (message "REGEXP: %s" (string-join regexps "\\|"))
     (string-join regexps "\\|")))
 
 (defun turbo-log--handle-comments (comment-type func)
