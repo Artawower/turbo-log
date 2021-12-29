@@ -137,7 +137,6 @@ When LOGGER-CONFIG provided top-level structure will be used from plist."
         (top-level-structure (turbo-log--get-logger-config logger-config top-level-structures)))
     (while (not (member current-type top-level-structure))
       (setq current-node (tsc-get-parent current-node))
-      (message "%s" (tsc-node-type current-node))
       (when current-node
         (setq current-type (tsc-node-type current-node))))
     `(,current-node ,current-type)))
@@ -161,7 +160,6 @@ LOGGER-CONFIG - configuration of current logger."
   "Move cursor to provided LINE-NUMBER."
   (forward-line (- line-number (line-number-at-pos))))
 
-;; TODO: replace to build enitre log content
 (defun turbo-log--format-meta-info (line-number)
   "Format meta information by provided config.
 Insert LINE-NUMBER and buffer name."
@@ -195,7 +193,6 @@ LOGGER-CONFIG - configuration of current logger."
 
       (setq current-node (tsc-current-node cursor))
 
-      (message "[%s] | %s: %s" current-type current-node (tsc-node-end-position current-node))
       (when current-node
         (setq current-type (tsc-node-type current-node))))
 
@@ -257,14 +254,12 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
            (log-msg (format logger (concat log-info-text ", " log-message)))
            (close-bracket (if include-close-bracket-p "\n}" ""))
            (log-msgs `(,log-msg ,close-bracket))
-           (post-insert-hooks (plist-get logger-config :post-insert-hooks)))
+           (post-insert-hooks (turbo-log--get-logger-config logger-config post-insert-hooks)))
 
       (turbo-log--goto-line insert-line-number)
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
-      (message "LOGGERS META: %s" logger-config)
-      (message "%s : === %s" log-msgs include-close-bracket-p)
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
         (when (functionp hook)
@@ -297,11 +292,6 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
            (parent-node (car parent-node-type-pair))
            (parent-node-type (car (cdr parent-node-type-pair)))
            (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node logger-config)))
-
-      (message (make-string 80 ?-))
-      (message "Result: %s" parent-node-type)
-      (message "Insert pos: %s" insert-line-number)
-      (message (make-string 80 ?|))
       insert-line-number)))
 
 (defun turbo-log--remove-closed-bracket (line-number)
@@ -365,10 +355,6 @@ FUNC - function that will accept start and end point of found log line."
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
-  ;; TODO: debug only
-  ;; (save-window-excursion
-  ;;   (switch-to-buffer "*Messages*")
-  ;;   (erase-buffer))
 
   (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
       (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
