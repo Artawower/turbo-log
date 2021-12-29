@@ -303,27 +303,6 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
     (search-forward-regexp "}[[:blank:]]*")
     (replace-match "")))
 
-;;;###autoload
-(defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
-  "Log selected region for current major mode.
-Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
-INSERT-IMMEDIATELY-P - should insert first available logger?"
-  (interactive)
-  ;; TODO: debug only
-  ;; (save-window-excursion
-  ;;   (switch-to-buffer "*Messages*")
-  ;;   (erase-buffer))
-
-  (if (bound-and-true-p tree-sitter-mode)
-      (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
-             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
-             (log-message (turbo-log--get-log-text past-from-clipboard-p)))
-
-        (when insert-line-number
-          (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-          (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
-    (message "For turbo-log package you need to enable tree-sitter-mode.")))
-
 (defun turbo-log--normilize-regexp (regexp)
   "Screen REGEXP string."
   (dolist (p '(("/" "\\/")
@@ -370,6 +349,27 @@ FUNC - function that will accept start and end point of found log line."
       (while (setq start-pos (re-search-forward (turbo-log--build-log-regexp comment-type) nil t))
         (funcall func (match-beginning 0) start-pos)
         (forward-line)))))
+
+;;;###autoload
+(defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
+  "Log selected region for current major mode.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
+INSERT-IMMEDIATELY-P - should insert first available logger?"
+  (interactive)
+  ;; TODO: debug only
+  ;; (save-window-excursion
+  ;;   (switch-to-buffer "*Messages*")
+  ;;   (erase-buffer))
+
+  (if (bound-and-true-p tree-sitter-mode)
+      (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
+             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
+             (log-message (turbo-log--get-log-text past-from-clipboard-p)))
+
+        (when insert-line-number
+          (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
+          (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
+    (message "For turbo-log package you need to enable tree-sitter-mode.")))
 
 ;;;###autoload
 (defun turbo-log-print-immediately ()
