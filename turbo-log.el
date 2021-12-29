@@ -103,12 +103,19 @@ Will not be visible when its nil."
 (defconst turbo-log--comment-string "//"
   "Common string for find comments.")
 
+(defun turbo-log--symbol-value-or-nil (symbol)
+  "Return value by SYMBOL if exist, if not - return nil."
+  (if (boundp symbol)
+      (symbol-value symbol)
+    nil))
+
 (defmacro turbo-log--get-logger-config (logger-config key)
   "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
 When value is nil config will be taken from global scope.
 I know that it's a magic. And huge evil. But i like it."
   `(or (plist-get ,logger-config (symbol-value (intern (concatenate 'string ":" (symbol-name ',key)))))
-       (symbol-value (intern (concatenate 'string "turbo-log-" (symbol-name ',key))))))
+       (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log-" (symbol-name ',key))))
+       (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log--" (symbol-name ',key))))))
 
 (defun turbo-log--find-top-level-node (node)
   "Find top level structure for current NODE.
