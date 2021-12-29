@@ -221,27 +221,27 @@ Every text will be put at new line relative LINE-NUMBER"
         (setq line-number (+ line-number 1))))
     (indent-region start-selection (point))))
 
-(defun turbo-log--insert-logger-by-mode (insert-line-number
+(defun turbo-log--insert-logger-by-mode (logger-config
+                                         insert-line-number
                                          log-message
                                          &optional
                                          force-select-first-logger-p
                                          include-close-bracket-p)
-  "Insert LOG-MESSAGE by mode into INSERT-LINE-NUMBER.
+  "Insert LOG-MESSAGE by LOGGER-CONFIG into INSERT-LINE-NUMBER.
 When FORCE-SELECT-FIRST-LOGGER-P is true first logger will be selected.
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
 
   (save-excursion
-    (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
-           (loggers (plist-get logger-meta :loggers))
+    (let* ((loggers (plist-get logger-config :loggers))
            (logger (if (or force-select-first-logger-p (eq (length loggers) 1))
                        (or (car-safe (car loggers)) (car loggers))
                      (completing-read "Choose logger: " loggers)))
            (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
            ;; (qwe (progn
            ;;        (message "Selected logger: %s | %s, %s > logger-config: %s" (type-of logger) logger consistent-logger-config-p logger-config)))
-           (msg-template (turbo-log--get-logger-config logger-meta msg-format-template))
-           (payload-format-template (turbo-log--get-logger-config logger-meta payload-format-template))
+           (msg-template (turbo-log--get-logger-config logger-config msg-format-template))
+           (payload-format-template (turbo-log--get-logger-config logger-config payload-format-template))
            (meta-info (turbo-log--format-meta-info insert-line-number))
            (log-info-text (format msg-template (concat meta-info
                                                        (format payload-format-template log-message)
@@ -249,7 +249,7 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
            (log-msg (format logger (concat log-info-text ", " log-message)))
            (close-bracket (if include-close-bracket-p "\n}" ""))
            (log-msgs `(,log-msg ,close-bracket))
-           (post-insert-hooks (plist-get logger-meta :post-insert-hooks)))
+           (post-insert-hooks (plist-get logger-config :post-insert-hooks)))
 
       ;; (message "logger-typs: %s\n logger: %s\n loggers-type:%s\n loggers: %s\n"
       ;;          (type-of logger)
@@ -261,7 +261,7 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
-      (message "LOGGERS META: %s" logger-meta)
+      (message "LOGGERS META: %s" logger-config)
       (message "%s : === %s" log-msgs include-close-bracket-p)
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
@@ -369,15 +369,19 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
   ;;   (erase-buffer))
 
   (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
-      (let* ((insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
+      (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
+             (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number))))
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
              (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
-        (when insert-line-number
+        (unless logger-config
+          (message "Turbo-log: No configuration provided for %s mode" major-mode))
+
+        (when (and insert-line-number logger-config)
           (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
-          (turbo-log--insert-logger-by-mode insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
+          (turbo-log--insert-logger-by-mode logger-config insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
     (message "For turbo-log package you need to enable tree-sitter-mode.")))
 
 ;;;###autoload
