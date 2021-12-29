@@ -4,7 +4,7 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "24.4") (tree-sitter "0.16.1"))
+;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (seq "2.23"))
 ;; Version: 2.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -33,6 +33,7 @@
 ;;;; Variables
 (require 'subr-x)
 (require 'simple)
+(require 'seq)
 (require 'tree-sitter)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
@@ -88,6 +89,8 @@ In such case log line will be inserted next line."
   :group 'turbo-log
   :type 'boolean)
 
+(defconst turbo-log--block-statements '(block program statement_block source_file :)
+  "Nodes that indicate about new block statement.")
 
 (defconst turbo-log--top-level-structures
   '(function class program statement_block return_statement if_statement class_declaration
@@ -120,34 +123,39 @@ In such case log line will be inserted next line."
   "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
 When value is nil config will be taken from global scope.
 I know that it's a magic. And huge evil. But i like it."
-  `(or (plist-get ,logger-config (symbol-value (intern (concatenate 'string ":" (symbol-name ',key)))))
+  `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (concatenate 'string ":" (symbol-name ',key))))))
        (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log-" (symbol-name ',key))))
        (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log--" (symbol-name ',key))))))
 
-(defun turbo-log--find-top-level-node (node)
+(defun turbo-log--find-top-level-node (node &optional logger-config)
   "Find top level structure for current NODE.
-Could return function class program statement_block or nil."
-  (let ((current-node node)
-        (current-type (tsc-node-type node)))
-    (while (not (member current-type turbo-log--top-level-structures))
+Could return function class program statement_block or nil.
+When LOGGER-CONFIG provided top-level structure will be used from plist."
 
+  (let ((current-node node)
+        (current-type (tsc-node-type node))
+        (top-level-structure (turbo-log--get-logger-config logger-config top-level-structures)))
+    (while (not (member current-type top-level-structure))
       (setq current-node (tsc-get-parent current-node))
       (message "%s" (tsc-node-type current-node))
       (when current-node
         (setq current-type (tsc-node-type current-node))))
     `(,current-node ,current-type)))
 
-(defun turbo-log--node-next-line-insert-p (node-type)
-  "Return t when its possible to insert logger next line by NODE-TYPE."
-  (member node-type turbo-log--nodes-allowed-insert-next-line))
+(defun turbo-log--node-next-line-insert-p (node-type logger-config)
+  "Return t when its possible to insert logger next line by NODE-TYPE.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-allowed-insert-next-line)))
 
-(defun turbo-log--node-previous-line-insert-p (node-type)
-  "Return t when its possible to insert logger next line by NODE-TYPE."
-  (member node-type turbo-log--nodes-allowed-insert-previous-line))
+(defun turbo-log--node-previous-line-insert-p (node-type logger-config)
+  "Return t when its possible to insert logger next line by NODE-TYPE.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-allowed-insert-previous-line)))
 
-(defun turbo-log--node-ignored-p (node-type)
-  "Check by NODE-TYPE, is it possible to use current node as log position."
-  (member node-type turbo-log--nodes-ignored))
+(defun turbo-log--node-ignored-p (node-type logger-config)
+  "Check by NODE-TYPE, is it possible to use current node as log position.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-ignored)))
 
 (defun turbo-log--goto-line (line-number)
   "Move cursor to provided LINE-NUMBER."
@@ -167,16 +175,17 @@ Insert LINE-NUMBER and buffer name."
   (turbo-log--goto-line line-number)
   (thing-at-point 'line))
 
-(defun turbo-log--find-next-block-statement (parent-node)
-  "Find next block statement from current line by PARENT-NODE."
-  (message (concat "\n" (make-string 120 ?')))
+(defun turbo-log--find-next-block-statement (parent-node &optional logger-config)
+  "Find next block statement from current line by PARENT-NODE.
+LOGGER-CONFIG - configuration of current logger."
+
   (let* ((cursor (tsc-make-cursor parent-node))
          (current-node parent-node)
          (current-type (tsc-node-type current-node))
-         (cursor-res t))
+         (cursor-res t)
+         (block-statement-nodes (turbo-log--get-logger-config logger-config block-statements)))
 
-    (while (or (not (member current-type '(block program statement_block source_file :))) (not cursor-res))
-
+    (while (or (not (member current-type block-statement-nodes)) (not cursor-res))
       (setq cursor-res (cond
                         ((tsc-goto-next-sibling cursor) t)
                         ((tsc-goto-first-child cursor) t)
@@ -193,18 +202,21 @@ Insert LINE-NUMBER and buffer name."
     (goto-char (tsc-node-start-position current-node))
     (+ (line-number-at-pos) 1)))
 
-(defun turbo-log--node-end-position-insert-p (node-type parent-node)
-  "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node."
-  (when (member node-type turbo-log--nodes-for-end-position-inserting)
+(defun turbo-log--node-end-position-insert-p (node-type parent-node &optional logger-config)
+  "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node.
+LOGGER-CONFIG - configuration of current logger."
+  (when (member node-type (turbo-log--get-logger-config logger-config nodes-for-end-position-inserting))
     (goto-char (tsc-node-end-position parent-node))
     (+ (line-number-at-pos) 1)))
 
-(defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node)
-  "Return line number for insertion by current NODE-TYPE and PARENT-NODE."
-  (cond ((turbo-log--node-end-position-insert-p node-type parent-node))
-        ((turbo-log--node-next-line-insert-p node-type) (+ (line-number-at-pos) 1))
-        ((turbo-log--node-previous-line-insert-p node-type) (line-number-at-pos))
-        ((turbo-log--node-ignored-p node-type) nil)
+(defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
+  "Return line number for insertion by current NODE-TYPE and PARENT-NODE.
+LOGGER-CONFIG - configuration of current logger."
+
+  (cond ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
+        ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
+        ((turbo-log--node-previous-line-insert-p node-type logger-config) (line-number-at-pos))
+        ((turbo-log--node-ignored-p node-type logger-config) nil)
         (t (turbo-log--find-next-block-statement parent-node))))
 
 ;; TODO: check its need?
@@ -212,8 +224,6 @@ Insert LINE-NUMBER and buffer name."
   "Insert every messages from TEXTS alists.
 Every text will be put at new line relative LINE-NUMBER"
   (turbo-log--goto-line line-number)
-  ;; (end-of-line)
-  ;; (newline-and-indent)
   (let ((start-selection (point)))
     (dolist (text texts)
       (when text
@@ -238,8 +248,6 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
                        (or (car-safe (car loggers)) (car loggers))
                      (completing-read "Choose logger: " loggers)))
            (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
-           ;; (qwe (progn
-           ;;        (message "Selected logger: %s | %s, %s > logger-config: %s" (type-of logger) logger consistent-logger-config-p logger-config)))
            (msg-template (turbo-log--get-logger-config logger-config msg-format-template))
            (payload-format-template (turbo-log--get-logger-config logger-config payload-format-template))
            (meta-info (turbo-log--format-meta-info insert-line-number))
@@ -250,12 +258,6 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
            (close-bracket (if include-close-bracket-p "\n}" ""))
            (log-msgs `(,log-msg ,close-bracket))
            (post-insert-hooks (plist-get logger-config :post-insert-hooks)))
-
-      ;; (message "logger-typs: %s\n logger: %s\n loggers-type:%s\n loggers: %s\n"
-      ;;          (type-of logger)
-      ;;          logger
-      ;;          (type-of loggers)
-      ;;          loggers)
 
       (turbo-log--goto-line insert-line-number)
       (insert "\n")
@@ -287,14 +289,14 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
   (save-excursion
     (string-match "[^\']+{[[:blank:]]*}[$ ]*" (turbo-log--get-line-text line-number))))
 
-(defun turbo-log--find-insert-line-number ()
-  "Find insert position."
+(defun turbo-log--find-insert-line-number (logger-config)
+  "Find insert position by LOGGER-CONFIG."
   (save-excursion
     (let* ((node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
-           (parent-node-type-pair (turbo-log--find-top-level-node node))
+           (parent-node-type-pair (turbo-log--find-top-level-node node logger-config))
            (parent-node (car parent-node-type-pair))
            (parent-node-type (car (cdr parent-node-type-pair)))
-           (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node)))
+           (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node logger-config)))
 
       (message (make-string 80 ?-))
       (message "Result: %s" parent-node-type)
@@ -372,7 +374,7 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
       (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
-                                       (t (turbo-log--find-insert-line-number))))
+                                       (t (turbo-log--find-insert-line-number logger-config))))
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
              (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
