@@ -75,6 +75,7 @@ Will not be visible when its nil."
     (rust-mode (:loggers ("println!(%s);")))
     (rustic-mode (:loggers ("println!(%s);" "{}")))
     (python-mode (:loggers ("print(%s)") :comment-string "#"))
+    (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;"))
     (go-mode (:loggers ("fmt.Println(%s)"
                         ("fmt.Printf(%s)" " %v")))))
   "Mode/config pairs."
@@ -86,6 +87,7 @@ Will not be visible when its nil."
 In such case log line will be inserted next line."
   :group 'turbo-log
   :type 'boolean)
+
 
 (defconst turbo-log--top-level-structures
   '(function class program statement_block return_statement if_statement class_declaration
@@ -232,8 +234,8 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
   (save-excursion
     (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
            (loggers (plist-get logger-meta :loggers))
-           (logger (if force-select-first-logger-p
-                       (car loggers)
+           (logger (if (or force-select-first-logger-p (eq (length loggers) 1))
+                       (or (car-safe (car loggers)) (car loggers))
                      (completing-read "Choose logger: " loggers)))
            (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
            ;; (qwe (progn
@@ -259,7 +261,7 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
-      (message "LOGGERS META: %s" loggers-meta)
+      (message "LOGGERS META: %s" logger-meta)
       (message "%s : === %s" log-msgs include-close-bracket-p)
       ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
@@ -370,7 +372,6 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
       (let* ((insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number))))
-
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
              (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
