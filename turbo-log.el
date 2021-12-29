@@ -81,6 +81,11 @@ Will not be visible when its nil."
   :group 'turbo-log
   :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
 
+(defcustom turbo-log-allow-insert-without-tree-sitter-p nil
+  "Allow insert logger when tree-sitter is disabled.
+In such case log line will be inserted next line."
+  :group 'turbo-log
+  :type 'boolean)
 
 (defconst turbo-log--top-level-structures
   '(function class program statement_block return_statement if_statement class_declaration
@@ -361,8 +366,11 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
   ;;   (switch-to-buffer "*Messages*")
   ;;   (erase-buffer))
 
-  (if (bound-and-true-p tree-sitter-mode)
-      (let* ((insert-line-number (if past-from-clipboard-p (line-number-at-pos) (turbo-log--find-insert-line-number)))
+  (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
+      (let* ((insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
+                                       ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
+                                       (t (turbo-log--find-insert-line-number))))
+
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
              (log-message (turbo-log--get-log-text past-from-clipboard-p)))
 
