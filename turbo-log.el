@@ -58,8 +58,14 @@ Will not be visible when its nil."
   :group 'turbo-log
   :type 'string)
 
+(defcustom turbo-log-argument-divider ","
+  "Divider for list of arguments."
+  :group 'turbo-log
+  :type 'string)
+
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+    :jump-list ((class_declaration (method_definition "constructor")))
     :msg-format-template "'TCL: %s'")
   "Common configurations for ecmascript`s based modes.")
 
@@ -76,7 +82,7 @@ Will not be visible when its nil."
     (rust-mode (:loggers ("println!(%s);")))
     (rustic-mode (:loggers ("println!(%s);" "{}")))
     (python-mode (:loggers ("print(%s)") :comment-string "#"))
-    (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;"))
+    (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
     (go-mode (:loggers ("fmt.Println(%s)"
                         ("fmt.Printf(%s)" " %v")))))
   "Mode/config pairs."
@@ -206,15 +212,57 @@ LOGGER-CONFIG - configuration of current logger."
     (goto-char (tsc-node-end-position parent-node))
     (+ (line-number-at-pos) 1)))
 
+(defun turbo-log--find-parent-jump-line-number (parent-node &optional logger-config)
+  "Find insert position when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
+  (save-excursion
+    (let* ((logger-jump-list (turbo-log--get-logger-config logger-config jump-list))
+           (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
+           (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
+           (search-literal (when jump-literal-name (car jump-literal-name)))
+           (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
+           (cursor (tsc-make-cursor parent-node))
+           insert-position (cursor-res t))
+
+
+      (message "name: %s, search-name: %s" search-literal search-name)
+      (goto-char (point-min)) ;; NOTE: cause constructor and other literals could be above relative to current line
+
+      (while (and (not insert-position) cursor-res logger-jump-list)
+        (setq cursor-res (cond
+                          ((tsc-goto-next-sibling cursor) t)
+                          ((tsc-goto-first-child cursor) t)
+                          ((progn (tsc-goto-parent cursor)
+                                  (tsc-goto-next-sibling cursor)) t)
+                          (t nil)))
+
+        ;; (message "%s | %s" (tsc-node-type current-node) (tsc-node-type parent-node))
+
+        (setq current-node (tsc-current-node cursor))
+
+        (message "%s" (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
+
+        (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
+          (message "--------------------------------------------------------------------------------")
+          (message "%s %s" insert-position cursor-res)
+          (setq cursor-res nil))
+
+        (when (eq (tsc-node-type current-node) search-literal)
+          (goto-char (tsc-node-start-position current-node))
+          (setq insert-position (+ (line-number-at-pos) 1))))
+      insert-position)))
+
 (defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
   "Return line number for insertion by current NODE-TYPE and PARENT-NODE.
 LOGGER-CONFIG - configuration of current logger."
 
-  (cond ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
-        ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
-        ((turbo-log--node-previous-line-insert-p node-type logger-config) (line-number-at-pos))
-        ((turbo-log--node-ignored-p node-type logger-config) nil)
-        (t (turbo-log--find-next-block-statement parent-node))))
+  (let* ((jump-line-number (turbo-log--find-parent-jump-line-number parent-node logger-config)))
+
+    (cond (jump-line-number jump-line-number)
+          ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
+          ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
+          ((turbo-log--node-previous-line-insert-p node-type logger-config) (line-number-at-pos))
+          ((turbo-log--node-ignored-p node-type logger-config) nil)
+          (t (turbo-log--find-next-block-statement parent-node)))))
 
 ;; TODO: check its need?
 (defun turbo-log--insert-with-indent (line-number texts)
@@ -251,7 +299,8 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
            (log-info-text (format msg-template (concat meta-info
                                                        (format payload-format-template log-message)
                                                        variable-format-template)))
-           (log-msg (format logger (concat log-info-text ", " log-message)))
+           (argument-divider (turbo-log--get-logger-config logger-config argument-divider))
+           (log-msg (format logger (concat log-info-text argument-divider " " log-message)))
            (close-bracket (if include-close-bracket-p "\n}" ""))
            (log-msgs `(,log-msg ,close-bracket))
            (post-insert-hooks (turbo-log--get-logger-config logger-config post-insert-hooks)))
