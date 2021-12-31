@@ -35,6 +35,7 @@
 (require 'simple)
 (require 'seq)
 (require 'tree-sitter)
+(require 'tramp)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
   "Template for formatting entire log message."
@@ -52,7 +53,7 @@ Line number will not be shown when value is nil."
   :group 'turbo-log
   :type 'string)
 
-(defcustom turbo-log-buffer-name-format-template "[%s]"
+(defcustom turbo-log-buffer-name-format-template "[%s] "
   "Template for formatting buffer name.
 Will not be visible when its nil."
   :group 'turbo-log
@@ -70,11 +71,9 @@ Will not be visible when its nil."
     :message-node-types (identifier member_expression))
   "Common configurations for ecmascript`s based modes.")
 
-(defcustom turbo-log--message-node-types nil
+(defconst turbo-log--message-node-types nil
   "List of nodes that will be printed from current line.
-When not provided entire region will be printed."
-  :group 'turbo-log
-  :type 'alist)
+When not provided entire region will be printed.")
 
 (defcustom turbo-log-loggers
   `((typescript-mode ,turbo-log--default-ecmascript-config)
@@ -177,8 +176,11 @@ LOGGER-CONFIG - configuration of current logger."
   "Format meta information by provided config.
 Insert LINE-NUMBER and buffer name."
 
-  (let ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
-        (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
+  (let* ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
+         (real-buffer-name (if (file-remote-p default-directory)
+                               (tramp-file-name-localname (tramp-dissect-file-name (buffer-name)))
+                             (buffer-name)))
+         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template real-buffer-name))))
     (concat line-number buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
