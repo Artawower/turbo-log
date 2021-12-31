@@ -66,8 +66,15 @@ Will not be visible when its nil."
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
     :jump-list ((class_declaration (method_definition "constructor")))
-    :msg-format-template "'TCL: %s'")
+    :msg-format-template "'TCL: %s'"
+    :message-node-types (identifier member_expression))
   "Common configurations for ecmascript`s based modes.")
+
+(defcustom turbo-log--message-node-types nil
+  "List of nodes that will be printed from current line.
+When not provided entire region will be printed."
+  :group 'turbo-log
+  :type 'alist)
 
 (defcustom turbo-log-loggers
   `((typescript-mode ,turbo-log--default-ecmascript-config)
@@ -213,9 +220,11 @@ LOGGER-CONFIG - configuration of current logger."
     (+ (line-number-at-pos) 1)))
 
 (defun turbo-log--find-parent-jump-line-number (parent-node &optional logger-config)
-  "Find insert position when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
+  "Find insert position.
+Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
   (save-excursion
     (let* ((logger-jump-list (turbo-log--get-logger-config logger-config jump-list))
+           (current-node parent-node)
            (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
            (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
            (search-literal (when jump-literal-name (car jump-literal-name)))
@@ -224,7 +233,6 @@ LOGGER-CONFIG - configuration of current logger."
            insert-position (cursor-res t))
 
 
-      (message "name: %s, search-name: %s" search-literal search-name)
       (goto-char (point-min)) ;; NOTE: cause constructor and other literals could be above relative to current line
 
       (while (and (not insert-position) cursor-res logger-jump-list)
@@ -234,16 +242,8 @@ LOGGER-CONFIG - configuration of current logger."
                           ((progn (tsc-goto-parent cursor)
                                   (tsc-goto-next-sibling cursor)) t)
                           (t nil)))
-
-        ;; (message "%s | %s" (tsc-node-type current-node) (tsc-node-type parent-node))
-
         (setq current-node (tsc-current-node cursor))
-
-        (message "%s" (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
-
         (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
-          (message "--------------------------------------------------------------------------------")
-          (message "%s %s" insert-position cursor-res)
           (setq cursor-res nil))
 
         (when (eq (tsc-node-type current-node) search-literal)
@@ -256,7 +256,6 @@ LOGGER-CONFIG - configuration of current logger."
 LOGGER-CONFIG - configuration of current logger."
 
   (let* ((jump-line-number (turbo-log--find-parent-jump-line-number parent-node logger-config)))
-
     (cond (jump-line-number jump-line-number)
           ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
           ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
@@ -398,6 +397,35 @@ FUNC - function that will accept start and end point of found log line."
         (funcall func (match-beginning 0) start-pos)
         (forward-line)))))
 
+(defun turbo-log--extract-message-node-types (message-node-types divider)
+  "Extract every nodes from current line that contained by MESSAGE-NODE-TYPES.
+Result will be a string, divdded by DIVIDER."
+
+  (save-excursion
+    (beginning-of-line-text)
+    (let* ((max-line-point (point-at-eol))
+           (current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+           (cursor-res t)
+           (identifiers '()))
+
+      (while cursor-res
+        ;; FIXME: navigation by ts-tree doesn't work properly
+        (setq cursor-res (re-search-forward "[[:blank:]\n]+" nil t))
+        (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+        (when current-node
+
+          (when (tsc-node-named-p current-node)
+            (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
+
+          (when (> (tsc-node-start-position current-node) max-line-point)
+            (setq cursor-res nil))
+
+          (when (member (tsc-node-type current-node) message-node-types)
+            (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
+
+      (when identifiers
+        (string-join (delete-dups identifiers) divider)))))
+
 ;;;###autoload
 (defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
   "Log selected region for current major mode.
@@ -405,14 +433,24 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
 
+  ;; TODO: debug only
+  (save-window-excursion
+    (switch-to-buffer "*Messages*")
+    (erase-buffer))
   (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
       (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
+             (divider (turbo-log--get-logger-config logger-config argument-divider))
+             (message-node-types (turbo-log--get-logger-config logger-config message-node-types))
+             (log-message (turbo-log--get-log-text past-from-clipboard-p))
+             (extracted-log-message (when message-node-types (turbo-log--extract-message-node-types message-node-types divider)))
+             (log-message (or extracted-log-message log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number logger-config))))
-             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p)))
-             (log-message (turbo-log--get-log-text past-from-clipboard-p)))
+             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
 
+
+        (message "Message log types: %s" message-node-types)
         (unless logger-config
           (message "Turbo-log: No configuration provided for %s mode" major-mode))
 
