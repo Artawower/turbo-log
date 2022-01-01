@@ -1,37 +1,36 @@
-name: check
+name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - master
-      - "feature/*"
+    paths-ignore: ['**.md', '**.adoc']
+  pull_request:
+    paths-ignore: ['**.md', '**.adoc']
 
 jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
+    continue-on-error: ${{matrix.emacs_version == 'snapshot'}}
+
     strategy:
-      fail-fast: false
       matrix:
-        emacs_version:
-          - 26.1
-          - 26.2
-          - 26.3
-        ignore_warnings:
-          - true
-        include:
-          - emacs_version: snapshot
-            ignore_warnings: false
+        emacs_version: ['25.1', '25.2', '25.3',
+                        '26.1', '26.2', '26.3',
+                        '27.1', '27.2',
+                        'snapshot']
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: purcell/setup-emacs@master
-        with:
-          version: ${{ matrix.emacs_version }}
-      - uses: leotaku/elisp-check@master
-        with:
-          file: turbo-log.el
-          ignore_warnings: ${{ matrix.ignore_warnings }}
-      - uses: leotaku/elisp-check@master
-        with:
-          check: ert
-          file: test.el
+    - name: Set up Emacs
+      uses: purcell/setup-emacs@master
+      with:
+        version: ${{matrix.emacs_version}}
+
+    - name: Install Eldev
+      run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
+
+    - name: Check out the source code
+      uses: actions/checkout@v2
+
+    - name: Test the project
+      run: |
+        eldev -p -dtT -C test --expect 100
+        eldev -dtT -C compile --warnings-as-errors
