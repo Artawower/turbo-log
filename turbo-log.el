@@ -414,8 +414,9 @@ Result will be a string, divdded by DIVIDER."
         ;; FIXME: navigation by ts-tree doesn't work properly
         (setq cursor-res (re-search-forward "[[:blank:]\n]+" nil t))
         (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
-        (when current-node
+        (message "node type: %s\nvar: %s" (tsc-node-type current-node) (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
 
+        (when current-node
           (when (> (tsc-node-start-position current-node) max-line-point)
             (setq cursor-res nil))
 
@@ -437,7 +438,7 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
              (divider (turbo-log--get-logger-config logger-config argument-divider))
              (message-node-types (turbo-log--get-logger-config logger-config message-node-types))
              (log-message (turbo-log--get-log-text past-from-clipboard-p))
-             (extracted-log-message (when (and message-node-types (region-active-p))
+             (extracted-log-message (when (and message-node-types (not (region-active-p)))
                                       (turbo-log--extract-message-node-types message-node-types divider)))
              (log-message (or extracted-log-message log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
@@ -446,7 +447,6 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
 
 
-        (message "Message log types: %s" message-node-types)
         (unless logger-config
           (message "Turbo-log: No configuration provided for %s mode" major-mode))
 
