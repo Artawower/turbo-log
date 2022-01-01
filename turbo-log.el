@@ -135,9 +135,9 @@ In such case log line will be inserted next line."
   "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
 When value is nil config will be taken from global scope.
 I know that it's a magic. And huge evil. But i like it."
-  `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (concatenate 'string ":" (symbol-name ',key))))))
-       (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log-" (symbol-name ',key))))
-       (turbo-log--symbol-value-or-nil (intern (concatenate 'string "turbo-log--" (symbol-name ',key))))))
+  `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (seq-concatenate 'string ":" (symbol-name ',key))))))
+       (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log-" (symbol-name ',key))))
+       (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log--" (symbol-name ',key))))))
 
 (defun turbo-log--find-top-level-node (node &optional logger-config)
   "Find top level structure for current NODE.
@@ -230,7 +230,8 @@ Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
            (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
            (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
            (search-literal (when jump-literal-name (car jump-literal-name)))
-           (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
+           ;; Add search name
+           ;; (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
            (cursor (tsc-make-cursor parent-node))
            insert-position (cursor-res t))
 
@@ -265,7 +266,6 @@ LOGGER-CONFIG - configuration of current logger."
           ((turbo-log--node-ignored-p node-type logger-config) nil)
           (t (turbo-log--find-next-block-statement parent-node)))))
 
-;; TODO: check its need?
 (defun turbo-log--insert-with-indent (line-number texts)
   "Insert every messages from TEXTS alists.
 Every text will be put at new line relative LINE-NUMBER"
@@ -416,13 +416,10 @@ Result will be a string, divdded by DIVIDER."
         (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
         (when current-node
 
-          (when (tsc-node-named-p current-node)
-            (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
-
           (when (> (tsc-node-start-position current-node) max-line-point)
             (setq cursor-res nil))
 
-          (when (member (tsc-node-type current-node) message-node-types)
+          (when (and (member (tsc-node-type current-node) message-node-types) (tsc-node-named-p current-node))
             (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
 
       (when identifiers
@@ -435,10 +432,6 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
 
-  ;; TODO: debug only
-  (save-window-excursion
-    (switch-to-buffer "*Messages*")
-    (erase-buffer))
   (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
       (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
              (divider (turbo-log--get-logger-config logger-config argument-divider))
@@ -505,5 +498,6 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (turbo-log--handle-comments 'both (lambda (start-point end-point)
                                       (delete-region start-point (+ end-point 1)))))
+
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
