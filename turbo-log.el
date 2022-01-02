@@ -4,7 +4,7 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "25.1") (seq "2.23") (string-inflection "1.0.16"))
+;; Package-Requires: ((emacs "25.1") (seq "2.21") (string-inflection "1.0.16"))
 ;; Version: 2.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
