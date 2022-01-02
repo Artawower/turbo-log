@@ -4,7 +4,7 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (seq "2.23"))
+;; Package-Requires: ((emacs "25.1") (seq "2.23") (string-inflection "1.0.16"))
 ;; Version: 2.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -35,7 +35,9 @@
 (require 'simple)
 (require 'seq)
 (require 'tree-sitter)
+(require 'evil)
 (require 'tramp)
+(require 'string-inflection)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
   "Template for formatting entire log message."
