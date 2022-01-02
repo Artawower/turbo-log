@@ -32,5 +32,4 @@ jobs:
 
     - name: Test the project
       run: |
-        eldev -p -dtT -C test --expect 100
-        eldev -dtT -C compile --warnings-as-errors
+        eldev -p -dtT -C test
