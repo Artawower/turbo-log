@@ -42,7 +42,7 @@ function myFuncWithEmptyBody(qwwe) {}")
           :msg-format-template "'TCL: %s'"
           :buffer-name-format-template "(%s)"))
 
-  (setq turbo-log-payload-format-template "%s - ")
+  (setq-local turbo-log-payload-format-template "%s - ")
 
   (should (equal "%s - " (turbo-log--get-logger-config turbo-log-test-logger-config payload-format-template)))
   (should (equal "(%s)" (turbo-log--get-logger-config turbo-log-test-logger-config buffer-name-format-template)))
@@ -102,4 +102,74 @@ function myFuncWithEmptyBody(qwwe) {}")
   (test-inside-mock-buffer
    (should (equal nil (turbo-log--line-with-empty-body-p 1)))))
 
+(defmacro test-inside-typescript-mode-buffer (code &rest body)
+  "Function for navigation to LINE-NUMBER and testing TEST-FUNC in new buffer."
+  `(save-window-excursion
+     (switch-to-buffer-other-window "*buffer-for-test*")
+     (typescript-mode)
+     (tree-sitter-mode)
+     (transient-mark-mode)
+     (setq-default typescript-indent-level 2)
+     (insert ,code)
+     ,@body
+     (erase-buffer)
+     (kill-buffer)))
+
+(ert-deftest test-turbo-log-print-immediately ()
+  (test-inside-typescript-mode-buffer
+    "class TestClass {
+  public myMethod(arg: number): number {
+    return arg * 2;
+  }
+}"
+    ;; NOTE: point for arg variable
+   (set-mark 37)
+   (goto-char 40)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "class TestClass {
+  public myMethod(arg: number): number {
+    console.log('TCL: [line 3][*buffer-for-test*] arg: ', arg)
+    return arg * 2;
+  }
+}"))))
+
+(ert-deftest test-turbo-log-print-immediately-with-blank-body ()
+  (test-inside-typescript-mode-buffer
+    "function testFunc(arg0: string) {}"
+    ;; NOTE: point for arg0 variable
+   (set-mark 19)
+   (goto-char 23)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "function testFunc(arg0: string) {
+  console.log('TCL: [line 2][*buffer-for-test*] arg0: ', arg0)
+}"))))
+
+(ert-deftest test-turbo-log-print-log-line-variable ()
+  (test-inside-typescript-mode-buffer
+    "function test() {
+  const foo = 1;
+  const bar = 2;
+  const b = [1, 2, 3,
+             10, 12, 22,
+             33, 44, 15];
+
+  const a = 4;
+  if ((a = 1)) {}
+}"
+   ;; NOTE: point for b variable
+   (set-mark 61)
+   (goto-char 62)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max))
+                  "function test() {
+  const foo = 1;
+  const bar = 2;
+  const b = [1, 2, 3,
+             10, 12, 22,
+             33, 44, 15];
+  console.log('TCL: [line 7][*buffer-for-test*] b: ', b)
+
+  const a = 4;
+  if ((a = 1)) {}
+}"))))
 ;;; test.el ends here

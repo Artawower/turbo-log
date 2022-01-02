@@ -2,3 +2,5 @@
 
 ;; Autodetermined by `eldev init'.
 (eldev-use-package-archive 'melpa)
+(eldev-add-extra-dependencies 'test 'typescript-mode)
+(eldev-add-extra-dependencies 'test 'tree-sitter-langs)
