@@ -13,10 +13,11 @@ jobs:
 
     strategy:
       matrix:
-        emacs_version: ['25.1', '25.2', '25.3',
-                        '26.1', '26.2', '26.3',
-                        '27.1', '27.2',
-                        'snapshot']
+        emacs_version: ['27.1', '27.2']
+        # emacs_version: ['25.1', '25.2', '25.3',
+        #                 '26.1', '26.2', '26.3',
+        #                 '27.1', '27.2',
+        #                 'snapshot']
 
     steps:
     - name: Set up Emacs
