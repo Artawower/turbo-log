@@ -4,7 +4,7 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (seq "2.21"))
+;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (seq "2.21") (s "1.12.0"))
 ;; Version: 2.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -35,6 +35,7 @@
 (require 'simple)
 (require 'seq)
 (require 'tree-sitter)
+(require 's)
 (require 'tramp)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
@@ -359,7 +360,7 @@ inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
                ("]" "\\\]")
                ("\"" "\\\"")
                ("." "\.")))
-    (setq regexp (string-replace (car p) (cadr p) regexp)))
+    (setq regexp (s-replace (car p) (cadr p) regexp)))
   regexp)
 
 (defun turbo-log--build-log-regexp (comment-type)

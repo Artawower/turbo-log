@@ -4,4 +4,3 @@
 (eldev-use-package-archive 'melpa)
 (eldev-add-extra-dependencies 'test 'typescript-mode)
 (eldev-add-extra-dependencies 'test 'tree-sitter-langs)
-(eldev-add-extra-dependencies 'compile 'subr-x)

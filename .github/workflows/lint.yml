@@ -40,4 +40,4 @@ jobs:
     - name: Test the project
       run: |
         eldev prepare && eldev -p -dtT -C test
-        eldev prepare && eldev -p -dtT -C compile --warnings-as-errors
+        eldev prepare && eldev -p -dtT -C compile --warnings-as-errors turbo-log.el
