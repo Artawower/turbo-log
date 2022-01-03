@@ -371,7 +371,7 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
                    (lambda (v) (if (consp v) (car v) v))
                    (plist-get logger-meta :loggers)))
          (comment-string (turbo-log--get-logger-config logger-meta comment-string))
-         (safety-comment-string (string-replace "/" "\\/" comment-string))
+         (safety-comment-string (s-replace "/" "\\/" comment-string))
          (msg-template (turbo-log--normilize-regexp (turbo-log--get-logger-config logger-meta msg-format-template)))
          (line-number-formatter (turbo-log--get-logger-config logger-meta line-number-format-template))
          (line-number-info (and line-number-formatter (format (turbo-log--normilize-regexp line-number-formatter) "[0-9]+")))
