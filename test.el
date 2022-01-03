@@ -144,7 +144,7 @@ function myFuncWithEmptyBody(qwwe) {}")
   console.log('TCL: [line 2][*buffer-for-test*] arg0: ', arg0)
 }"))))
 
-(ert-deftest test-turbo-log-print-log-line-variable ()
+(ert-deftest test-turbo-log-print-long-line-variable ()
   (test-inside-typescript-mode-buffer
     "function test() {
   const foo = 1;
@@ -171,5 +171,36 @@ function myFuncWithEmptyBody(qwwe) {}")
 
   const a = 4;
   if ((a = 1)) {}
+}"))))
+
+(ert-deftest test-turbo-log-extract-correct-identifier ()
+  (test-inside-typescript-mode-buffer
+   "function test(): string {
+  const hello = \"Hello\";
+  return hello;
+}"
+  (set-mark 29)
+  (deactivate-mark)
+  (goto-char 29)
+  (turbo-log-print-immediately)
+  (should (equal (buffer-substring (point-min) (point-max)) "function test(): string {
+  const hello = \"Hello\";
+  console.log('TCL: [line 3][*buffer-for-test*] hello: ', hello)
+  return hello;
+}"))))
+
+
+(ert-deftest test-turbo-log-log-insert-above-return ()
+  (test-inside-typescript-mode-buffer
+   "function test(hello: number): string {
+  return hello;
+}"
+  ;; NOTE: hello indentifiert from return statement
+  (set-mark 49)
+  (goto-char 54)
+  (turbo-log-print-immediately)
+  (should (equal (buffer-substring (point-min) (point-max)) "function test(hello: number): string {
+  console.log('TCL: [line 2][*buffer-for-test*] hello: ', hello)
+  return hello;
 }"))))
 ;;; test.el ends here
