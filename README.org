@@ -93,10 +93,8 @@ Where:
 + [X] Golang
 + [X] Javascript
 + [X] Typescript
-+ [ ] Java
-+ [ ] C+=
-+ [ ] C#
-+ [ ] dart
++ [X] Java
++ [X] C#
 + [X] Rust
-+ [ ] Lua
-+ [X] Elisp
++ [-] Lua (Without tree-sitter)
++ [-] Elisp (Without tree-sitter)

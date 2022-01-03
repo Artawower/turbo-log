@@ -86,6 +86,11 @@ When not provided entire region will be printed.")
     (rjsx-mode ,turbo-log--default-ecmascript-config)
     (web-mode ,turbo-log--default-ecmascript-config)
     (vue-mode ,turbo-log--default-ecmascript-config)
+    (csharp-mode (:loggers ("Console.WriteLine(%s);")))
+    (javap-mode (:loggers ("System.out.println(%s);")))
+    (java-mode (:loggers ("System.out.println(%s);")))
+    (ruby-mode (:loggers ("p %s" "puts %s") :comment-string "#" :argument-divider ","))
+    (lua-mode (:loggers ("print(%s)")))
     (rust-mode (:loggers ("println!(%s);")))
     (rustic-mode (:loggers ("println!(%s);" "{}")))
     (python-mode (:loggers ("print(%s)") :comment-string "#"))
@@ -108,16 +113,17 @@ In such case log line will be inserted next line."
 (defconst turbo-log--top-level-structures
   '(function class program statement_block return_statement if_statement class_declaration
              source_file block array variable_declarator function_declaration assignment
-             function_definition short_var_declaration def arrow_function method_definition expression_statement)
+             function_definition short_var_declaration def arrow_function method_definition
+             expression_statement return if method_parameters)
   "Top level structure for detecting paste place.")
 
-(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration expression_statement)
+(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration expression_statement method_parameters)
   "Node types for inserting logger after end position.")
 
 (defconst turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function)
   "Node types that allow to insert logger next line.")
 
-(defconst turbo-log--nodes-allowed-insert-previous-line '(return_statement if_statement)
+(defconst turbo-log--nodes-allowed-insert-previous-line '(return_statement if_statement return if)
   "Node types that allow to insert logger next line.")
 
 (defconst turbo-log--nodes-ignored '(class_declaration)
@@ -383,10 +389,12 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
          (regexps '()))
 
     (dolist (l loggers)
-      (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\)]+")) ";?") regexps))
+      (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\);]+")) ";?") regexps))
 
+    ;; (message "regexps: %s" regexps)
     (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
-    (string-join regexps "\\|")))
+    (message "regexps: %s" (string-join regexps "\\|"))
+    (string-join regexps "\\\|")))
 
 (defun turbo-log--handle-comments (comment-type func)
   "Apply operation for found line with logs.
