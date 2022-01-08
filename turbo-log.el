@@ -70,10 +70,10 @@ Will not be visible when its nil."
     :jump-list ((class_declaration (property_identifier "constructor")))
     :msg-format-template "'TCL: %s'"
     :identifier-formatter-templates ((property_identifier "this.%s"))
-    :message-node-types (identifier member_expression property_identifier))
+    :identifier-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
 
-(defconst turbo-log--message-node-types nil
+(defconst turbo-log--identifier-node-types nil
   "List of nodes that will be printed from current line.
 When not provided entire region will be printed.")
 
@@ -409,8 +409,8 @@ FUNC - function that will accept start and end point of found log line."
         (funcall func (match-beginning 0) start-pos)
         (forward-line)))))
 
-(defun turbo-log--extract-message-node-types (message-node-types divider)
-  "Extract every nodes from current line that contained by MESSAGE-NODE-TYPES.
+(defun turbo-log--extract-identifier-node-types (identifier-node-types divider)
+  "Extract every nodes from current line that contained by IDENTIFIER-NODE-TYPES.
 Result will be a string, divdded by DIVIDER."
 
   (save-excursion
@@ -429,7 +429,7 @@ Result will be a string, divdded by DIVIDER."
           (when (> (tsc-node-start-position current-node) max-line-point)
             (setq cursor-res nil))
 
-          (when (and (member (tsc-node-type current-node) message-node-types)
+          (when (and (member (tsc-node-type current-node) identifier-node-types)
                      (tsc-node-named-p current-node)
                      (<= (tsc-node-start-position current-node) max-line-point))
             (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
@@ -455,10 +455,10 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
   (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
       (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
              (divider (turbo-log--get-logger-config logger-config argument-divider))
-             (message-node-types (turbo-log--get-logger-config logger-config message-node-types))
+             (identifier-node-types (turbo-log--get-logger-config logger-config identifier-node-types))
              (log-message (turbo-log--get-log-text past-from-clipboard-p))
-             (extracted-log-message (when (and message-node-types (not (region-active-p)))
-                                      (turbo-log--extract-message-node-types message-node-types divider)))
+             (extracted-log-message (when (and identifier-node-types (not (region-active-p)))
+                                      (turbo-log--extract-identifier-node-types identifier-node-types divider)))
              (log-message (if (region-active-p)
                               log-message
                             extracted-log-message))
