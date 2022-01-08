@@ -36,7 +36,6 @@
 (require 'seq)
 (require 'tree-sitter)
 (require 's)
-(require 'tramp)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
   "Template for formatting entire log message."
@@ -185,10 +184,7 @@ LOGGER-CONFIG - configuration of current logger."
 Insert LINE-NUMBER and buffer name."
 
   (let* ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
-         (real-buffer-name (if (file-remote-p default-directory)
-                               (tramp-file-name-localname (tramp-dissect-file-name (buffer-name)))
-                             (buffer-name)))
-         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template real-buffer-name))))
+         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
     (concat line-number buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
