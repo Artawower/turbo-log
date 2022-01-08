@@ -67,7 +67,7 @@ Will not be visible when its nil."
 
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-    :jump-list ((class_declaration (method_definition "constructor")))
+    :jump-list ((class_declaration (property_identifier "constructor")))
     :msg-format-template "'TCL: %s'"
     :message-node-types (identifier member_expression))
   "Common configurations for ecmascript`s based modes.")
@@ -228,6 +228,15 @@ LOGGER-CONFIG - configuration of current logger."
     (goto-char (tsc-node-end-position parent-node))
     (+ (line-number-at-pos) 1)))
 
+(defun turbo-log--goto-next-word ()
+  "Navigate to next word."
+  (re-search-forward "[[:blank:]\n]+" nil t))
+
+(defun turbo-log--get-node-name (node)
+  "Return name of current treesitter NODE if its a named node."
+  (when (tsc-node-named-p node)
+    (buffer-substring (tsc-node-start-position node) (tsc-node-end-position node))))
+
 (defun turbo-log--find-parent-jump-line-number (parent-node &optional logger-config)
   "Find insert position.
 Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
@@ -237,28 +246,22 @@ Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
            (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
            (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
            (search-literal (when jump-literal-name (car jump-literal-name)))
-           ;; Add search name
-           ;; (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
-           (cursor (tsc-make-cursor parent-node))
-           insert-position (cursor-res t))
-
+           (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
+           insert-position (cursor-res (turbo-log--goto-next-word)))
 
       (goto-char (point-min))
 
       (while (and (not insert-position) cursor-res logger-jump-list)
-        (setq cursor-res (cond
-                          ((tsc-goto-next-sibling cursor) t)
-                          ((tsc-goto-first-child cursor) t)
-                          ((progn (tsc-goto-parent cursor)
-                                  (tsc-goto-next-sibling cursor)) t)
-                          (t nil)))
-        (setq current-node (tsc-current-node cursor))
+        (setq current-node (tree-sitter-node-at-pos nil (point)))
+
         (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
           (setq cursor-res nil))
 
-        (when (eq (tsc-node-type current-node) search-literal)
+        (when (and (eq (tsc-node-type current-node) search-literal)
+                   (string-match search-name (turbo-log--get-node-name current-node)))
           (goto-char (tsc-node-start-position current-node))
-          (setq insert-position (+ (line-number-at-pos) 1))))
+          (setq insert-position (+ (line-number-at-pos) 1)))
+        (turbo-log--goto-next-word))
       insert-position)))
 
 (defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
@@ -419,7 +422,7 @@ Result will be a string, divdded by DIVIDER."
 
       (while cursor-res
         ;; FIXME: navigation by ts-tree doesn't work properly
-        (setq cursor-res (re-search-forward "[[:blank:]\n]+" nil t))
+        (setq cursor-res (turbo-log--goto-next-word))
         (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
 
         (when current-node
