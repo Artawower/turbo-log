@@ -4,122 +4,203 @@
 
 ;;; Code:
 
-(ert-deftest test-ecmascript-is-return ()
-  "Tests return statement."
-  (should (equal 0 (turbo-log--return-line-p "  return {
-     name: 'name'
-   }")))
-  (should (equal nil (turbo-log--return-line-p "public isFuncReturnTrue(true) {")))
-  (should (equal nil (turbo-log--return-line-p "returnValueFromSomeFucn('value') {"))))
-
-
-(ert-deftest test-ecmascript-code-normalize ()
-  (should (equal "this.myAwesomeVariable" (turbo-log--ecmascript-normilize-code "this.myAwesomeVariable = { name: 'Hello', world: true }")))
-  (should (equal "myVar" (turbo-log--ecmascript-normilize-code "const myVar = 'Hello world'")))
-  (should (equal "var" (turbo-log--ecmascript-normilize-code "const var = 'Hello world'")))
-  (should (equal "hello" (turbo-log--ecmascript-normilize-code "public hello: string = 12;")))
-  (should (equal "somePrivateVariable" (turbo-log--ecmascript-normilize-code "private somePrivateVariable: Subject<void> = new Subject<void>()")))
-  (should (equal "protectedVar" (turbo-log--ecmascript-normilize-code "protected protectedVar: Subject<void>;")))
-  (should (equal "literal" (turbo-log--ecmascript-normilize-code "var literal: string = 'qweqwe' // Some comment for future generation")))
-  (should (equal "let5" (turbo-log--ecmascript-normilize-code "let let5: string // Some comment for future generation")))
-  (should (equal "let6" (turbo-log--ecmascript-normilize-code "let let6: string; // Some comment for future generation"))))
-
-(ert-deftest test-space-count-at-start-of-line ()
-  "Test space count at start of line."
-  (should (equal 0 (turbo-log--calculate-space-count "This is text without any space")))
-  (should (equal 2 (turbo-log--calculate-space-count "  This is text with 2 spaces")))
-  (should (equal 3 (turbo-log--calculate-space-count "   ")))
-  (should (equal 0 (turbo-log--calculate-space-count "")))
-  (should (equal 1 (turbo-log--calculate-space-count "\t")))
-  (should (equal 4 (turbo-log--calculate-space-count "\t\t \t")))
-  (should (equal 2 (turbo-log--calculate-space-count "\n\n"))))
-
-(ert-deftest test-semicolon-removed-from-end ()
-  (should (equal "const test = 12" (turbo-log--remove-semicolon-at-end "const test = 12;"))))
-
-(defun test-select-current-line ()
-  "Help func for select current line."
-  (move-beginning-of-line nil)
-  (set-mark-command nil)
-  (move-end-of-line nil)
-  (setq deactivate-mark nil))
-
-;; TODO: add optional code block like real sample.
-(defun test-inside-mock-buffer (test-func line-number)
+(defmacro test-inside-mock-buffer (&rest body)
   "Function for navigation to LINE-NUMBER and testing TEST-FUNC in new buffer."
-  (switch-to-buffer-other-window "*buffer-for-test*")
-  (setq test-lines '("This is first line"
-                     "second line"
-                     "3 line);"
-                     "return someVar;"
-                     "next line"
-                     "and another"))
+  `(save-window-excursion
+     (switch-to-buffer-other-window "*buffer-for-test*")
+     (insert "class TestClass {
+  private t: any;
+  private b: string;
+  private myAnotherVariable: any;
 
-  (mapcar '(lambda (v) (insert v)
-             (end-of-line)
-             (newline-and-indent)
-             ) test-lines)
-  (goto-line line-number)
-  (test-select-current-line)
-  (funcall test-func)
-  (erase-buffer))
+  constructor(t: any, b: string, myAnotherVariable: number) {
+    console.log(\"TCL: [line 7][test.ts]t: \", t);
+    this.t = t;
+    this.b = b;
+    this.myAnotherVariable = myAnotherVariable;
+    console.log(
+      \"This message will not be comment, cause it made by programmers.\"
+    );
+  }
+}
 
-(ert-deftest test-correct-line-selection ()
-  "Test if correct line selected for test inserting."
-  (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--get-selected-text) "3 line);"))) 3)
-  (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--get-selected-text) "This is first line"))) 1))
-
-(ert-deftest test-ecmascript-correct-insert-position-selected ()
-  "Test position for text-insertion."
-  (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--ecmascript-find-insert-pos 3 "3 line);") 3))) 3)
-  ;; If return keyword should return previous line
-  (test-inside-mock-buffer (lambda ()
-                             (should (equal (turbo-log--ecmascript-find-insert-pos 4 "return someVar;") 3))) 4))
-
-(ert-deftest test-python-correct-code-normalize ()
-  "Test python code normalization."
-  (should (equal "my_variable" (turbo-log--python-normalize-code "my_variable = 123;")))
-  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: int) -> str:")))
-  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec: str, smile: int, foo: [int]) -> str:")))
-  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec, smile: int, foo: [int]) -> str:")))
-  (should (equal "spec, smile, foo" (turbo-log--python-normalize-code "def test_func(spec = 1, smile: int, foo: [int]) -> str:"))))
-
-(ert-deftest test-goto-line-work ()
-  "Test turbo-log--goto-line workds properly."
-  (test-inside-mock-buffer (lambda ()
-                             (turbo-log--goto-line 4)
-                             (should (equal (line-number-at-pos) 4))
-                             (turbo-log--goto-line 1)
-                             (should (equal (line-number-at-pos) 1))
-                             (turbo-log--goto-line 0)
-                             (should (equal (line-number-at-pos) 1))
-                             (turbo-log--goto-line -10)
-                             (should (equal (line-number-at-pos) 1))
-                             (turbo-log--goto-line 23)
-                             ;; 7 is max line
-                             (should (equal (line-number-at-pos) 7))) 0)
-  )
-
-(ert-deftest test-ecmascript-empty-body-p ()
-  "Test that turbo-log--ecmascript-empty-body-p should find func or method."
-  (should (equal t (turbo-log--ecmascript-empty-body-p "function myAwesomeFunc() { }")))
-  (should (equal t (turbo-log--ecmascript-empty-body-p "protected myAwesomeFunc() {}")))
-  (should (equal t (turbo-log--ecmascript-empty-body-p "public myAwesomeFunc(a: string) {}")))
-  (should (equal t (turbo-log--ecmascript-empty-body-p "private some_bad_function(bad_arg, anotherArg) {}")))
-  (should (equal t (turbo-log--ecmascript-empty-body-p "some_bad_function(bad_arg, anotherArg) {}")))
-  (should (equal nil (turbo-log--ecmascript-empty-body-p "someObject {}")))
-  (should (equal nil (turbo-log--ecmascript-empty-body-p "someObject { }")))
-  (should (equal nil (turbo-log--ecmascript-empty-body-p "anotherobject { b: 4, }")))
-  (should (equal nil (turbo-log--ecmascript-empty-body-p "anotherobject { b: 'some-string' }")))
-  (should (equal nil (turbo-log--ecmascript-empty-body-p "myf {awesomeKey:'some-string'}"))))
+function myFuncWithEmptyBody(qwwe) {}")
+     (goto-char (point-min))
+     ,@body
+     (erase-buffer)
+     (kill-buffer)))
 
 
-(ert-deftest test-golang-inline-function-p ()
-  "Test golang inline function."
-  (should (equal nil (turbo-log--golang-inline-func-p "(* Method) func test() {")))
-  (should (equal nil (turbo-log--golang-inline-func-p "(* Method) func test(arg1 int, arg2 string) {"))))
+(ert-deftest test-return-value-by-symbol ()
+  (setq turbo-log-my-test-variable "Hello!")
+  (should (equal nil (turbo-log--symbol-value-or-nil 'turbo-log-non-existing-variable)))
+  (should (equal "Hello!" (turbo-log--symbol-value-or-nil 'turbo-log-my-test-variable))))
 
+(ert-deftest test-turbo-log-get-logger-config ()
+  (setq turbo-log-test-logger-config
+        '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+          :msg-format-template "'TCL: %s'"
+          :buffer-name-format-template "(%s)"))
+
+  (setq-local turbo-log-payload-format-template "%s - ")
+
+  (should (equal "%s - " (turbo-log--get-logger-config turbo-log-test-logger-config payload-format-template)))
+  (should (equal "(%s)" (turbo-log--get-logger-config turbo-log-test-logger-config buffer-name-format-template)))
+  (should (equal nil (turbo-log--get-logger-config turbo-log-test-logger-config non-exited-variable)))
+  (should (equal "[%s] " (turbo-log--get-logger-config nil buffer-name-format-template))))
+
+
+(ert-deftest test-turbo-log--find-top-level-node ())
+
+(ert-deftest test-turbo-log--goto-line ()
+  (test-inside-mock-buffer
+   (turbo-log--goto-line 5)
+   (should (equal 5 (line-number-at-pos))))
+
+  (test-inside-mock-buffer
+   (turbo-log--goto-line 1)
+   (should (equal 1 (line-number-at-pos))))
+
+  (test-inside-mock-buffer
+   (turbo-log--goto-line 0)
+   (should (equal 1 (line-number-at-pos)))))
+
+(ert-deftest test-turbo-log-format-meta-info ()
+  (test-inside-mock-buffer
+   (should (equal "[line 1][*buffer-for-test*] " (turbo-log--format-meta-info 1))))
+
+  (test-inside-mock-buffer
+   (setq-local turbo-log-line-number-format-template nil)
+   (should (equal "[*buffer-for-test*] " (turbo-log--format-meta-info 1))))
+
+  (test-inside-mock-buffer
+   (setq-local turbo-log-buffer-name-format-template nil)
+   (should (equal "[line 5]" (turbo-log--format-meta-info 5)))))
+
+(ert-deftest test-turbo-log-get-line-text ()
+  (test-inside-mock-buffer
+   (should (equal "class TestClass {\n" (turbo-log--get-line-text 1)))
+   (should (equal "  private myAnotherVariable: any;\n" (turbo-log--get-line-text 4)))))
+
+
+(ert-deftest test-turbo-log-get-line-text ()
+  (test-inside-mock-buffer
+   ;; NOTE: this t points from typescript example
+   (set-mark 208)
+   (goto-char 214)
+   (should (equal "this.t" (turbo-log--get-log-text))))
+
+  (test-inside-mock-buffer
+   (kill-new "Hello world")
+   (should (equal "Hello world" (turbo-log--get-log-text t)))))
+
+
+(ert-deftest test-turbo-log-line-with-empty-body-p ()
+  (test-inside-mock-buffer
+   (should (not (equal nil (turbo-log--line-with-empty-body-p 17)))))
+
+  (test-inside-mock-buffer
+   (should (equal nil (turbo-log--line-with-empty-body-p 1)))))
+
+(defmacro test-inside-typescript-mode-buffer (code &rest body)
+  "Function for navigation to LINE-NUMBER and testing TEST-FUNC in new buffer."
+  `(save-window-excursion
+     (switch-to-buffer-other-window "*buffer-for-test*")
+     (typescript-mode)
+     (tree-sitter-mode)
+     (transient-mark-mode)
+     (setq-default typescript-indent-level 2)
+     (insert ,code)
+     ,@body
+     (erase-buffer)
+     (kill-buffer)))
+
+(ert-deftest test-turbo-log-print-immediately ()
+  (test-inside-typescript-mode-buffer
+    "class TestClass {
+  public myMethod(arg: number): number {
+    return arg * 2;
+  }
+}"
+    ;; NOTE: point for arg variable
+   (set-mark 37)
+   (goto-char 40)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "class TestClass {
+  public myMethod(arg: number): number {
+    console.log('TCL: [line 3][*buffer-for-test*] arg: ', arg)
+    return arg * 2;
+  }
+}"))))
+
+(ert-deftest test-turbo-log-print-immediately-with-blank-body ()
+  (test-inside-typescript-mode-buffer
+    "function testFunc(arg0: string) {}"
+    ;; NOTE: point for arg0 variable
+   (set-mark 19)
+   (goto-char 23)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "function testFunc(arg0: string) {
+  console.log('TCL: [line 2][*buffer-for-test*] arg0: ', arg0)
+}"))))
+
+(ert-deftest test-turbo-log-print-long-line-variable ()
+  (test-inside-typescript-mode-buffer
+    "function test() {
+  const foo = 1;
+  const bar = 2;
+  const b = [1, 2, 3,
+             10, 12, 22,
+             33, 44, 15];
+
+  const a = 4;
+  if ((a = 1)) {}
+}"
+   ;; NOTE: point for b variable
+   (set-mark 61)
+   (goto-char 62)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max))
+                  "function test() {
+  const foo = 1;
+  const bar = 2;
+  const b = [1, 2, 3,
+             10, 12, 22,
+             33, 44, 15];
+  console.log('TCL: [line 7][*buffer-for-test*] b: ', b)
+
+  const a = 4;
+  if ((a = 1)) {}
+}"))))
+
+(ert-deftest test-turbo-log-extract-correct-identifier ()
+  (test-inside-typescript-mode-buffer
+   "function test(): string {
+  const hello = \"Hello\";
+  return hello;
+}"
+  (set-mark 29)
+  (deactivate-mark)
+  (goto-char 29)
+  (turbo-log-print-immediately)
+  (should (equal (buffer-substring (point-min) (point-max)) "function test(): string {
+  const hello = \"Hello\";
+  console.log('TCL: [line 3][*buffer-for-test*] hello: ', hello)
+  return hello;
+}"))))
+
+
+(ert-deftest test-turbo-log-log-insert-above-return ()
+  (test-inside-typescript-mode-buffer
+   "function test(hello: number): string {
+  return hello;
+}"
+  ;; NOTE: hello indentifiert from return statement
+  (set-mark 49)
+  (goto-char 54)
+  (turbo-log-print-immediately)
+  (should (equal (buffer-substring (point-min) (point-max)) "function test(hello: number): string {
+  console.log('TCL: [line 2][*buffer-for-test*] hello: ', hello)
+  return hello;
+}"))))
 ;;; test.el ends here

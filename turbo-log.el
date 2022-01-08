@@ -4,8 +4,8 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "24.4"))
-;; Version: 1.2.0
+;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
+;; Version: 2.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -25,105 +25,257 @@
 ;; This package provides functionality for fast line/region logging with additional meta information
 ;; like line number, buffer name, and some info from syntax table.
 ;; Out of the box it works with golang, python, js and typescript languages.
+;; This package needs the https://emacs-tree-sitter.github.io/tree-sitter-mode/
+
 
 ;;; Code:
 
 ;;;; Variables
 (require 'subr-x)
 (require 'simple)
+(require 'seq)
+(require 'tree-sitter)
+(require 's)
 
-(defvar turbo-log--prefix "TCL: "
-  "Prefix string for every log messages.")
+(defcustom turbo-log-msg-format-template "\"TCL: %s\""
+  "Template for formatting entire log message."
+  :group 'turbo-log
+  :type 'string)
 
+(defcustom turbo-log-payload-format-template "%s: "
+  "Template for formatting payload info (current selected region or clipboard)."
+  :group 'turbo-log
+  :type 'string)
 
-(defvar turbo-log--python-loggers '("print")
-  "List of python loggers.")
-(defvar turbo-log--ecmascript-loggers '("console.log")
-  "List of ecmascript loggers.")
-(defvar turbo-log--golang-loggers '("fmt.Println")
-  "List of golang loggers.")
-(defvar turbo-log--include-buffer-name t
-  "Include current buffer name to log message.")
-(defvar turbo-log--open-brackets '(?{ ?\( ?\[)
-  "List of opened brackets.")
-(defvar turbo-log--close-brackets '(?} ?\) ?\])
-  "List of opened brackets.")
+(defcustom turbo-log-line-number-format-template "[line %s]"
+  "Template for formatting line number.
+Line number will not be shown when value is nil."
+  :group 'turbo-log
+  :type 'string)
 
-(defvar turbo-log--ecmascript-configs '(:include-semicolon t
-                                        :max-line-length 80)
-  "Additional configuration for ecmascript.
-:include-semicolon - should semicolon to be added after new log message inserted
-:max-line-length - max line length for console log line break.")
+(defcustom turbo-log-buffer-name-format-template "[%s] "
+  "Template for formatting buffer name.
+Will not be visible when its nil."
+  :group 'turbo-log
+  :type 'string)
 
-;;;; Common functions
-(defun turbo-log--calculate-space-count (text)
-  "Get space count at start of provided TEXT."
-  (let* ((original-text-length (length text))
-         (no-start-space-text (string-trim-left text))
-         (no-start-space-text-length (length no-start-space-text)))
-    (- original-text-length no-start-space-text-length)))
+(defcustom turbo-log-argument-divider ","
+  "Divider for list of arguments."
+  :group 'turbo-log
+  :type 'string)
 
+(defconst turbo-log--default-ecmascript-config
+  '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+    :jump-list ((class_declaration (property_identifier "constructor")))
+    :msg-format-template "'TCL: %s'"
+    :identifier-formatter-templates ((property_identifier "this.%s"))
+    :identifier-node-types (identifier member_expression property_identifier))
+  "Common configurations for ecmascript`s based modes.")
+
+(defconst turbo-log--identifier-node-types nil
+  "List of nodes that will be printed from current line.
+When not provided entire region will be printed.")
+
+(defcustom turbo-log-loggers
+  `((typescript-mode ,turbo-log--default-ecmascript-config)
+    (js-mode ,turbo-log--default-ecmascript-config)
+    (js2-mode ,turbo-log--default-ecmascript-config)
+    (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
+    (rjsx-mode ,turbo-log--default-ecmascript-config)
+    (ng2-ts-mode ,turbo-log--default-ecmascript-config)
+    (rjsx-mode ,turbo-log--default-ecmascript-config)
+    (web-mode ,turbo-log--default-ecmascript-config)
+    (vue-mode ,turbo-log--default-ecmascript-config)
+    (csharp-mode (:loggers ("Console.WriteLine(%s);")))
+    (javap-mode (:loggers ("System.out.println(%s);")))
+    (java-mode (:loggers ("System.out.println(%s);")))
+    (ruby-mode (:loggers ("p %s;" "puts %s;") :comment-string "#" :argument-divider ","))
+    (lua-mode (:loggers ("print(%s)")))
+    (rust-mode (:loggers ("println!(%s);")))
+    (rustic-mode (:loggers ("println!(%s);" "{}")))
+    (python-mode (:loggers ("print(%s)") :comment-string "#"))
+    (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
+    (go-mode (:loggers ("fmt.Println(%s)"
+                        ("fmt.Printf(%s)" " %v")))))
+  "Mode/config pairs."
+  :group 'turbo-log
+  :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
+
+(defcustom turbo-log-allow-insert-without-tree-sitter-p nil
+  "Allow insert logger when tree-sitter is disabled.
+In such case log line will be inserted next line."
+  :group 'turbo-log
+  :type 'boolean)
+
+(defconst turbo-log--block-statements '(block program statement_block source_file :)
+  "Nodes that indicate about new block statement.")
+
+(defconst turbo-log--top-level-structures
+  '(function class program statement_block return_statement if_statement class_declaration
+             source_file block array variable_declarator function_declaration assignment
+             function_definition short_var_declaration def arrow_function method_definition
+             expression_statement return if method_parameters)
+  "Top level structure for detecting paste place.")
+
+(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration expression_statement method_parameters)
+  "Node types for inserting logger after end position.")
+
+(defconst turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function)
+  "Node types that allow to insert logger next line.")
+
+(defconst turbo-log--nodes-allowed-insert-previous-line '(return_statement if_statement return if)
+  "Node types that allow to insert logger next line.")
+
+(defconst turbo-log--nodes-ignored '(class_declaration)
+  "Nodes that not allowed to be inserted as logger.")
+
+(defconst turbo-log--comment-string "//"
+  "Common string for find comments.")
+
+(defun turbo-log--symbol-value-or-nil (symbol)
+  "Return value by SYMBOL if exist, if not - return nil."
+  (if (boundp symbol)
+      (symbol-value symbol)
+    nil))
+
+(defmacro turbo-log--get-logger-config (logger-config key)
+  "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
+When value is nil config will be taken from global scope.
+I know that it's a magic. And huge evil. But i like it."
+  `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (seq-concatenate 'string ":" (symbol-name ',key))))))
+       (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log-" (symbol-name ',key))))
+       (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log--" (symbol-name ',key))))))
+
+(defun turbo-log--find-top-level-node (node &optional logger-config)
+  "Find top level structure for current NODE.
+Could return function class program statement_block or nil.
+When LOGGER-CONFIG provided top-level structure will be used from plist."
+
+  (let ((current-node node)
+        (current-type (tsc-node-type node))
+        (top-level-structure (turbo-log--get-logger-config logger-config top-level-structures)))
+    (while (not (member current-type top-level-structure))
+      (setq current-node (tsc-get-parent current-node))
+      (when current-node
+        (setq current-type (tsc-node-type current-node))))
+    `(,current-node ,current-type)))
+
+(defun turbo-log--node-next-line-insert-p (node-type logger-config)
+  "Return t when its possible to insert logger next line by NODE-TYPE.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-allowed-insert-next-line)))
+
+(defun turbo-log--node-previous-line-insert-p (node-type logger-config)
+  "Return t when its possible to insert logger next line by NODE-TYPE.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-allowed-insert-previous-line)))
+
+(defun turbo-log--node-ignored-p (node-type logger-config)
+  "Check by NODE-TYPE, is it possible to use current node as log position.
+LOGGER-CONFIG - configuration of current logger."
+  (member node-type (turbo-log--get-logger-config logger-config nodes-ignored)))
+
+(defun turbo-log--goto-line (line-number)
+  "Move cursor to provided LINE-NUMBER."
+  (forward-line (- line-number (line-number-at-pos))))
+
+(defun turbo-log--format-meta-info (line-number)
+  "Format meta information by provided config.
+Insert LINE-NUMBER and buffer name."
+
+  (let* ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
+         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
+    (concat line-number buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
   "Get text from LINE-NUMBER under point."
   (turbo-log--goto-line line-number)
   (thing-at-point 'line))
 
-(defun turbo-log--goto-line (line-number)
-  "Move cursor to provided LINE-NUMBER."
-  (forward-line (- line-number (line-number-at-pos))))
+(defun turbo-log--find-next-block-statement (parent-node &optional logger-config)
+  "Find next block statement from current line by PARENT-NODE.
+LOGGER-CONFIG - configuration of current logger."
 
-(defun turbo-log--return-line-p (text)
-  "Check is TEXT container return keyword."
-  (string-match "^[[:blank:]]*\\(return\\)[[:blank:]]+" text))
+  (let* ((cursor (tsc-make-cursor parent-node))
+         (current-node parent-node)
+         (current-type (tsc-node-type current-node))
+         (cursor-res t)
+         (block-statement-nodes (turbo-log--get-logger-config logger-config block-statements)))
 
-(defun turbo-log--has-text-linebreak (text)
-  "Check is TEXT container \n."
-  (string-match "\n" text))
+    (while (or (not (member current-type block-statement-nodes)) (not cursor-res))
+      (setq cursor-res (cond
+                        ((tsc-goto-next-sibling cursor) t)
+                        ((tsc-goto-first-child cursor) t)
+                        ((progn (tsc-goto-parent cursor)
+                                (tsc-goto-next-sibling cursor)) t)
+                        (t nil)))
 
-(defun turbo-log--replace-string (old new s)
-  "Replace OLD with NEW in S."
-  (declare (pure t) (side-effect-free t))
-  (replace-regexp-in-string (regexp-quote old) new s t t))
+      (setq current-node (tsc-current-node cursor))
 
-(defun turbo-log--remove-semicolon-at-end (code)
-  "Remove semicolon from provided CODE block."
-  (let* ((code-len (length code))
-         (last-char (substring code (- code-len 1) code-len)))
+      (when current-node
+        (setq current-type (tsc-node-type current-node))))
 
-    (if (string= ";" last-char)
-        (substring code 0 (- code-len 1))
-      code)))
+    (goto-char (tsc-node-start-position current-node))
+    (+ (line-number-at-pos) 1)))
 
-(defun turbo-log--format-meta-info (line-number)
-  "Format meta information by provided config.
-Insert LINE-NUMBER and buffer name."
+(defun turbo-log--node-end-position-insert-p (node-type parent-node &optional logger-config)
+  "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node.
+LOGGER-CONFIG - configuration of current logger."
+  (when (member node-type (turbo-log--get-logger-config logger-config nodes-for-end-position-inserting))
+    (goto-char (tsc-node-end-position parent-node))
+    (+ (line-number-at-pos) 1)))
 
-  (let ((line-number (concat "[line " (format "%s" line-number) "]")))
-    (if turbo-log--include-buffer-name
-        (concat line-number "[" (buffer-name) "] " turbo-log--prefix " ")
-      (concat line-number " " turbo-log--prefix " "))))
+(defun turbo-log--goto-next-word ()
+  "Navigate to next word."
+  (re-search-forward "[[:blank:]\n\(]+" nil t))
 
-(defun turbo-log--choose-logger (loggers &optional multiple-loggers-p)
-  "Choose logger if multiple LOGGERS were provided.
-When MULTIPLE-LOGGERS-P is nil will choose first logger from list."
-  (if (and (> (length loggers) 1) multiple-loggers-p)
-      (completing-read "Choose logger: " loggers)
-    (nth 0 loggers)))
+(defun turbo-log--get-node-name (node)
+  "Return name of current treesitter NODE if its a named node."
+  (when (tsc-node-named-p node)
+    (buffer-substring (tsc-node-start-position node) (tsc-node-end-position node))))
 
-(defun turbo-log--insert-with-indent (line-number text)
-  "Insert TEXT to current LINE-NUMBER with automatic indent."
-  (turbo-log--goto-line (- line-number 1))
-  (end-of-line)
-  (newline-and-indent)
-  (insert text))
+(defun turbo-log--find-parent-jump-line-number (parent-node &optional logger-config)
+  "Find insert position.
+Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
+  (save-excursion
+    (let* ((logger-jump-list (turbo-log--get-logger-config logger-config jump-list))
+           (current-node parent-node)
+           (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
+           (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
+           (search-literal (when jump-literal-name (car jump-literal-name)))
+           (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
+           insert-position (cursor-res (turbo-log--goto-next-word)))
 
-(defun turbo-log--insert-many-with-indent (line-number texts)
+      (goto-char (point-min))
+
+      (while (and (not insert-position) cursor-res logger-jump-list)
+        (setq current-node (tree-sitter-node-at-pos nil (point)))
+        (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
+          (setq cursor-res nil))
+
+        (when (and (eq (tsc-node-type current-node) search-literal)
+                   (string-match search-name (turbo-log--get-node-name current-node)))
+          (goto-char (tsc-node-start-position current-node))
+          (setq insert-position (+ (line-number-at-pos) 1)))
+        (setq cursor-res (turbo-log--goto-next-word)))
+      insert-position)))
+
+(defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
+  "Return line number for insertion by current NODE-TYPE and PARENT-NODE.
+LOGGER-CONFIG - configuration of current logger."
+
+  (let* ((jump-line-number (turbo-log--find-parent-jump-line-number parent-node logger-config)))
+    (cond (jump-line-number jump-line-number)
+          ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
+          ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
+          ((turbo-log--node-previous-line-insert-p node-type logger-config) (line-number-at-pos))
+          ((turbo-log--node-ignored-p node-type logger-config) nil)
+          (t (turbo-log--find-next-block-statement parent-node)))))
+
+(defun turbo-log--insert-with-indent (line-number texts)
   "Insert every messages from TEXTS alists.
 Every text will be put at new line relative LINE-NUMBER"
-  (turbo-log--goto-line (- line-number 1))
-  (end-of-line)
-  (newline-and-indent)
+  (turbo-log--goto-line line-number)
   (let ((start-selection (point)))
     (dolist (text texts)
       (when text
@@ -131,373 +283,211 @@ Every text will be put at new line relative LINE-NUMBER"
         (setq line-number (+ line-number 1))))
     (indent-region start-selection (point))))
 
-;;;; Ecmascript
-(defun turbo-log--ecmascript-normilize-code (code)
-  "Normalize CODE block for correct console.log func."
-  (let* ((code (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))
-         (code (replace-regexp-in-string "\\(const\\|let\\|public\\|protected\\|private\\|var\\)[[:blank:]]+" "" code))
-         ;; Remove type for typescript
-         (code (replace-regexp-in-string "\\:[[:blank:]].+" "" code)))
-    (turbo-log--remove-semicolon-at-end code)))
+(defun turbo-log--insert-logger-by-mode (logger-config
+                                         insert-line-number
+                                         log-message
+                                         &optional
+                                         force-select-first-logger-p
+                                         include-close-bracket-p)
+  "Insert LOG-MESSAGE by LOGGER-CONFIG into INSERT-LINE-NUMBER.
+When FORCE-SELECT-FIRST-LOGGER-P is true first logger will be selected.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
+when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
 
-(defun turbo-log--ecmascript-find-insert-pos (current-line-number text)
-  "Calculate insert position by CURRENT-LINE-NUMBER and TEXT from previous line."
-  (cond ((turbo-log--return-line-p text) (- current-line-number 1))
-        ((string-match "{\\|;$" text) current-line-number)
-        ((string-match "\\[$" text) (progn
-                                      (search-forward-regexp "\\];?$" nil t)
-                                      (+ (line-number-at-pos) 1)))
-        (t (let* ((current-char (char-after))
-                  (before-char (char-before))
-                  (first-back-bracket nil)
-                  (brackets '())
-                  (found nil))
-             (save-excursion
-               (while (and (not first-back-bracket) (not (bobp)))
-                 (setq before-char (char-before))
-                 (backward-char)
-                 (cond ((and (eq (length brackets) 0) (eq before-char ?{)) (setq first-back-bracket before-char))
-                       ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
-                       ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets))))))
+  (save-excursion
+    (let* ((loggers (plist-get logger-config :loggers))
+           (logger (if (or force-select-first-logger-p (eq (length loggers) 1))
+                       (or (car-safe (car loggers)) (car loggers))
+                     (completing-read "Choose logger: " loggers)))
+           (variable-format-template (or (nth 1 (assoc logger loggers)) ""))
+           (msg-template (turbo-log--get-logger-config logger-config msg-format-template))
+           (payload-format-template (turbo-log--get-logger-config logger-config payload-format-template))
+           (meta-info (turbo-log--format-meta-info insert-line-number))
+           (log-info-text (format msg-template (concat meta-info
+                                                       (format payload-format-template log-message)
+                                                       variable-format-template)))
+           (argument-divider (turbo-log--get-logger-config logger-config argument-divider))
+           (log-msg (format logger (concat log-info-text argument-divider " " log-message)))
+           (close-bracket (if include-close-bracket-p "\n}" ""))
+           (log-msgs `(,log-msg ,close-bracket))
+           (post-insert-hooks (turbo-log--get-logger-config logger-config post-insert-hooks)))
 
-             (setq brackets (if (eq first-back-bracket ?{) '(?{) '()))
+      (turbo-log--goto-line insert-line-number)
+      (insert "\n")
+      (turbo-log--insert-with-indent insert-line-number log-msgs)
 
-             (while (and (not (eobp)) (and (not (member current-char '(?\; ?{))) (eq (length brackets) 0)) (not found))
-               (forward-char)
-               (setq current-char (char-after))
-               (cond ((and (eq current-char ?}) (length= brackets 0))
-                      (setq found t))
-                     ((and (member current-char turbo-log--close-brackets) (> (length brackets) 0))
-                      (setq brackets (butlast brackets)))
-                     ((member current-char turbo-log--open-brackets)
-                      (setq brackets (append brackets (list current-char))))))
-             (if found current-line-number (+ (line-number-at-pos) 1))))))
+      (dolist (hook post-insert-hooks)
+        (when (functionp hook)
+          (funcall hook))))))
 
-(defun turbo-log--get-selected-text ()
-  "Return selected text."
-  (string-trim (buffer-substring (region-beginning) (region-end))))
+(defun turbo-log--get-log-text (&optional past-from-clipboard-p)
+  "Return text that should be inserted inside logger.
+When PAST-FROM-CLIPBOARD-P provided it will be inserted from clipboard."
+  (string-trim (if past-from-clipboard-p
+                   (current-kill 0 t)
+                 (buffer-substring (region-beginning) (region-end)))))
 
-(defun turbo-log--get-current-line-number ()
-  "Return current line number after select.
-Depend on full line selected or region."
-  (if (bolp)
-      (line-number-at-pos)
-    (+ (line-number-at-pos) 1)))
+(defun turbo-log--get-real-point ()
+  "Get real point.
+Cause evil change `point' function value by 1 inside `region-p'"
+  (if (and (bound-and-true-p evil-mode) (region-active-p))
+      (- (point) 1)
+    (point)))
 
-(defun turbo-log--ecmascript-empty-body-p (line-text)
-  "Return t if LINE-TEXT is func like function hello() { }."
-  (not (eq (string-match "\\(function\\|public\\|protected\\|private\\)?[[:blank:]]?[a-zA-Z0-9_]+\([a-zA-Z0-9_:,[:blank:]]*\)[[:blank:]]*{[[:blank:]]*}" line-text) nil)))
+(defun turbo-log--line-with-empty-body-p (line-number)
+  "Return t when LINE-NUMBER line is function with empty body."
+  (save-excursion
+    (string-match "[^\']+{[[:blank:]]*}[$ ]*" (turbo-log--get-line-text line-number))))
 
-(defun turbo-log--ecmascript-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
-  "Console log for ecmascript, js/ts modes.
+(defun turbo-log--find-insert-line-number (logger-config)
+  "Find insert position by LOGGER-CONFIG."
+  (save-excursion
+    (let* ((node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+           (parent-node-type-pair (turbo-log--find-top-level-node node logger-config))
+           (parent-node (car parent-node-type-pair))
+           (parent-node-type (car (cdr parent-node-type-pair)))
+           (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node logger-config)))
+      insert-line-number)))
 
-CURRENT-LINE-NUMBER - line number under cursor
-FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?
-FORCE-CURRENT-LINE-P - if true text will be selected under current
-line without any smart calculations."
+(defun turbo-log--remove-closed-bracket (line-number)
+  "Remove } from end of line at LINE-NUMBER position."
+  (save-excursion
+    (turbo-log--goto-line (- line-number 1))
+    (beginning-of-line)
+    (search-forward-regexp "}[[:blank:]]*")
+    (replace-match "")))
 
-  (let* ((is-empty-body (turbo-log--ecmascript-empty-body-p (turbo-log--get-line-text current-line-number)))
-         (insert-line-number (if force-current-line-p
-                                 current-line-number
-                               (turbo-log--ecmascript-find-insert-pos current-line-number prev-line-text)))
-         (meta-info (turbo-log--format-meta-info insert-line-number))
-         (logger (turbo-log--choose-logger turbo-log--ecmascript-loggers multiple-logger-p))
-         (normalized-code (turbo-log--ecmascript-normilize-code formatted-selected-text))
-         (content-between-brackets (concat meta-info
-                                           formatted-selected-text ": ', "))
-         (max-log-length (plist-get turbo-log--ecmascript-configs :max-line-length))
-         (multiline-p (and max-log-length
-                           (length> (concat logger content-between-brackets normalized-code)
-                                    max-log-length)))
-         (line-break (if multiline-p "\n" ""))
-         (turbo-log--messages
-          `(,(concat logger "(" line-break)
-            ,(concat "'" content-between-brackets line-break)
-            ,(concat normalized-code line-break)
-            ,(concat ")" (if (plist-get turbo-log--ecmascript-configs :include-semicolon) ";" ""))))
+(defun turbo-log--normilize-regexp (regexp)
+  "Screen REGEXP string."
+  (dolist (p '(("/" "\\/")
+               ("[" "\\\[")
+               ("]" "\\\]")
+               ("\"" "\\\"")
+               ("." "\.")))
+    (setq regexp (s-replace (car p) (cadr p) regexp)))
+  regexp)
 
-         (turbo-log--messages (if multiline-p turbo-log--messages `(,(string-join turbo-log--messages)))))
-
-    (if is-empty-body
-        (progn
-          (turbo-log--goto-line (- current-line-number 1))
-          (beginning-of-line)
-          (search-forward-regexp "}[[:blank:]]*")
-          (replace-match "")
-          (setq turbo-log--messages (append turbo-log--messages '("}")))
-          (turbo-log--insert-many-with-indent current-line-number turbo-log--messages)
-          (indent-according-to-mode))
-      (turbo-log--insert-many-with-indent insert-line-number turbo-log--messages))))
-
-(defun turbo-log--python-find-insert-pos (current-line-number text)
-  "Find insert position for python mode from CURRENT-LINE-NUMBER TEXT."
-  (if (turbo-log--return-line-p text)
-      (- current-line-number 1)
-    current-line-number))
-
-(defun turbo-log--extract-python-args (code)
-  "Func for extract arguments from CODE."
-  (let* ((code (replace-regexp-in-string "def[[:blank:]].+(" "" code))
-         (code (replace-regexp-in-string ").+" "" code))
-         (code (replace-regexp-in-string "[[:blank:]]?[:=]\\{1\\}\\([^,]+\\)" "" code)))
-    code))
-
-(defun turbo-log--python-normalize-code (code)
-  "Normalize python CODE for correct logging."
-  (let* ((code (if (string-match "def[[:blank:]]" code) (turbo-log--extract-python-args code)
-                 (replace-regexp-in-string "[[:blank:]]*=[[:blank:]]*.+" "" code))))
-    code))
-
-;;;; Python logger
-(defun turbo-log--python-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
-  "Printing for python mode.
-
-CURRENT-LINE-NUMBER - line number under cursor
-FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?
-FORCE-CURRENT-LINE-P - if true text will be selected under current
-line without any smart calculations."
-
-  (let* ((insert-line-number (if force-current-line-p
-                                 current-line-number
-                               (turbo-log--python-find-insert-pos current-line-number prev-line-text)))
-         (meta-info (turbo-log--format-meta-info insert-line-number))
-         (normalized-code (turbo-log--python-normalize-code formatted-selected-text))
-         (turbo-log--message
-          (concat
-           (turbo-log--choose-logger turbo-log--python-loggers multiple-logger-p)
-           "('"
-           meta-info
-           formatted-selected-text ": ', "
-           normalized-code ")")))
-
-    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
-
-;;;; Golang logger
-(defun turbo-log--golang-inline-func-p (text)
-  "Return t if current TEXT contain is valid golang function."
-  (string-match "[\w [:blank:]\)\(\*]+ func [\w [:blank:]\)\(\*] {" text))
-
-(defun turbo-log--golang-find-insert-pos (current-line-number text)
-  "Find insert position for python mode from CURRENT-LINE-NUMBER and provided TEXT."
-  (cond ((turbo-log--return-line-p text) (- current-line-number 1))
-        ((turbo-log--golang-inline-func-p text) (+ current-line-number 1))
-        ((and (string-match "\{$" text) (not (string-match " func " text))) (progn
-                                                                              (search-forward-regexp "\};?$" nil t)
-                                                                              (+ (line-number-at-pos) 1)))
-        (t (let* ((current-char nil)
-                  (before-char nil)
-                  (first-back-bracket nil)
-                  (brackets '()))
-
-             (save-excursion
-               (while (and (not first-back-bracket) (not (bobp)))
-                 (setq before-char (char-before))
-                 (backward-char)
-                 (cond ((and (length= brackets 0)
-                             ;; 40 - (
-                             (or (eq before-char ?{) (eq before-char 40)))
-                        (setq first-back-bracket before-char))
-                       ((member before-char turbo-log--close-brackets) (setq brackets (append brackets (list current-char))))
-                       ((member before-char turbo-log--open-brackets) (setq brackets (butlast brackets)))))
-               brackets)
-
-             (if (eq before-char ?{)
-                 current-line-number
-               (progn
-                 (while (and (not (eobp)) (not (eq (car brackets) ?{)))
-                   (forward-char)
-                   (setq current-char (char-after))
-                   (cond ((member current-char turbo-log--close-brackets)
-                          (setq brackets (butlast brackets)))
-                         ((member current-char turbo-log--open-brackets)
-                          (setq brackets (append brackets (list current-char))))
-                         (t (ignore))))
-                 (+ (line-number-at-pos) 1)))))))
-
-(defun turbo-log--golang-print (current-line-number formatted-selected-text prev-line-text &optional multiple-logger-p force-current-line-p)
-  "Print message for golang mode.
-CURRENT-LINE-NUMBER - line number under cursor
-FORMATTED-SELECTED-TEXT - formatted text without space at start position
-PREV-LINE-TEXT - text from previous line
-MULTIPLE-LOGGER-P - should guess list of available loggers?
-FORCE-CURRENT-LINE-P - if true text will be selected under
-current line without any smart calculations."
-
-  (let* ((insert-line-number (if force-current-line-p
-                                 current-line-number
-                               (turbo-log--golang-find-insert-pos current-line-number prev-line-text)))
-         (meta-info (turbo-log--format-meta-info insert-line-number))
-         (normalized-code formatted-selected-text)
-         (turbo-log--message
-          (concat
-           (turbo-log--choose-logger turbo-log--golang-loggers multiple-logger-p)
-           "(\""
-           meta-info
-           formatted-selected-text ": %v\", "
-           normalized-code ")")))
-
-
-    (turbo-log--insert-with-indent insert-line-number turbo-log--message)))
-
-(defvar turbo-log--modes '((typescript-mode . turbo-log--ecmascript-print)
-                           (js-mode . turbo-log--ecmascript-print)
-                           (js2-mode . turbo-log--ecmascript-print)
-                           (typescript-tsx-mode . turbo-log--ecmascript-print)
-                           (rjsx-mode . turbo-log--ecmascript-print)
-                           (ng2-ts-mode . turbo-log--ecmascript-print)
-                           (rjsx-mode . turbo-log--ecmascript-print)
-                           (web-mode . turbo-log--ecmascript-print)
-                           (vue-mode . turbo-log--ecmascript-print)
-                           (python-mode . turbo-log--python-print)
-                           (go-mode . turbo-log--golang-print)))
-
-(defun turbo-log--choose-mode ()
-  "Chose logger by current major mode."
-  (let* ((logger (assoc major-mode turbo-log--modes)))
-    (if logger
-        logger
-      (progn (message "Logger for mode %s is not found" major-mode)
-             nil))))
-
-(defun turbo-log--handle-logger (logger-func &optional multiple-logger-p past-from-clipboard-p)
-  "Common entrypoint for all loggers by provided LOGGER-FUNC.
-MULTIPLE-LOGGER-P allow to choose logger from list interactively.
-Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
-  (let* ((current-line-number (turbo-log--get-current-line-number))
-         (raw-selected-text (if past-from-clipboard-p (current-kill 0 t) (turbo-log--get-selected-text)))
-         (formatted-selected-text (string-trim raw-selected-text))
-         (prev-line-text (turbo-log--get-line-text (- current-line-number 1))))
-    (funcall logger-func
-             current-line-number
-             formatted-selected-text
-             prev-line-text
-             multiple-logger-p
-             past-from-clipboard-p)))
-
-
-(defun turbo-log--join-loggers-for-regexp (loggers)
-  "Build regexp by provided list of LOGGERS."
-  (string-join loggers "\\|"))
-
-(defun turbo-log--get-logger-regexps ()
-  "Get loggers on regexp format."
-  (concat "\\("
-          (turbo-log--replace-string "." "\\." (turbo-log--join-loggers-for-regexp turbo-log--golang-loggers))
-          "\\|"
-          (turbo-log--replace-string "." "\\." (turbo-log--join-loggers-for-regexp turbo-log--ecmascript-loggers))
-          "\\|"
-          (turbo-log--join-loggers-for-regexp turbo-log--python-loggers)
-          "\\)"))
-
-(defun turbo-log--build-log-regexp (log-type)
+(defun turbo-log--build-log-regexp (comment-type)
   "Build regexp for finding loggers made by turbo-log.
-LOG-TYPE can be 'commented 'uncommented 'both."
+COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
+  (let* ((logger-meta (car (cdr (assoc major-mode turbo-log-loggers))))
+         (loggers (mapcar
+                   (lambda (v) (if (consp v) (car v) v))
+                   (plist-get logger-meta :loggers)))
+         (comment-string (turbo-log--get-logger-config logger-meta comment-string))
+         (safety-comment-string (s-replace "/" "\\/" comment-string))
+         (msg-template (turbo-log--normilize-regexp (turbo-log--get-logger-config logger-meta msg-format-template)))
+         (line-number-formatter (turbo-log--get-logger-config logger-meta line-number-format-template))
+         (line-number-info (and line-number-formatter (format (turbo-log--normilize-regexp line-number-formatter) "[0-9]+")))
+         (log-message (format msg-template (concat line-number-info "[^'\"]+")))
 
-  ;; NOTE:
-  ;; "^[[:blank:]]*\\(fmt\\.Println\\|console\\.log\\|print\\)([\n[:blank:]'\"]*\\[line [0-9]+\\]"
-  (let* ((commented-regexp (format "^[[:blank:]]*%s[[:blank:]]*" (turbo-log--get-comment-regexp)))
-         (uncommented-regexp "^[[:blank:]]*")
-         (regexp (cond ((eq log-type 'commented) commented-regexp)
-                       ((eq log-type 'uncommented) uncommented-regexp)
-                       (t (format "\\(%s\\|%s\\)" commented-regexp uncommented-regexp))))
-         (regexp (concat
-                  regexp
-                  (turbo-log--get-logger-regexps)
-                  "([\n[:blank:]'\\\"."
-                  (if (eq log-type 'commented) "\\/" "")
-                  "]*"))
-         (regexp (concat regexp "\\[line [0-9]+\\]")))
-    regexp))
+         (log-prefix (cond ((eq comment-type 'uncommented) "^[[:blank:]]+")
+                           ((eq comment-type 'commented) (concat "^[[:blank:]]+" safety-comment-string "[[:blank:]]+"))
+                           ((eq comment-type 'both) (concat "^[[:blank:]]+" (format "\\(%s\\)?" safety-comment-string) "[[:blank:]]*"))))
+         (regexps '()))
 
-(defun turbo-log--get-comment-string ()
-  "Get commet characters by current 'major-mode'."
-  (if (eq major-mode 'python-mode) "# " "// "))
+    (dolist (l loggers)
+      (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\);]+")) ";?") regexps))
 
-(defun turbo-log--get-comment-regexp ()
-  "Get regexp for findings comment in current mode."
-  (if (eq major-mode 'python-mode) "#" "\\/\\/"))
+    (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
+    (string-join regexps "\\\|")))
 
-(defun turbo-log--toggle-current-line-comment ()
-  "Toggle commenting for current line."
-  (let* ((beg (line-beginning-position))
-         (end (line-end-position)))
-    (comment-or-uncomment-region beg end)))
-
-(defun turbo-log--handle-log-line (handle-line)
-  "Call HANDLE-LINE func for each comment line."
-  (let* ((cycle-limitter 0)
-         (start-line (progn (search-backward-regexp (turbo-log--get-logger-regexps) nil t)
-                            (line-number-at-pos)))
-         (end-line (progn (search-forward-regexp ");?$" nil t)
-                          (line-number-at-pos))))
-    (while (not (eq cycle-limitter (+ (- end-line start-line) 1)))
-      (setq cycle-limitter (+ cycle-limitter 1))
-      (funcall handle-line)
-      (forward-line -1))))
-
-;;;###autoload
-(defun turbo-log-print (&optional past-from-clipboard-p)
-  "Log selected region for current major mode.
-Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
+(defun turbo-log--handle-comments (comment-type func)
+  "Apply operation for found line with logs.
+COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'
+FUNC - function that will accept start and end point of found log line."
   (interactive)
-  (let* ((logger-list (turbo-log--choose-mode))
-         (logger (cdr logger-list)))
-    (if logger
-        (turbo-log--handle-logger logger t past-from-clipboard-p))))
+  (save-excursion
+    (goto-char (point-min))
+    (let* ((start-pos))
+      (while (setq start-pos (re-search-forward (turbo-log--build-log-regexp comment-type) nil t))
+        (funcall func (match-beginning 0) start-pos)
+        (forward-line)))))
+
+(defun turbo-log--extract-identifier-node-types (identifier-node-types divider)
+  "Extract every nodes from current line that contained by IDENTIFIER-NODE-TYPES.
+Result will be a string, divdded by DIVIDER."
+
+  (save-excursion
+    (beginning-of-line-text)
+    (let* ((max-line-point (point-at-eol))
+           (current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+           (cursor-res t)
+           (identifiers '()))
+
+      (while cursor-res
+        ;; FIXME: navigation by ts-tree doesn't work properly
+        (setq cursor-res (turbo-log--goto-next-word))
+        (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+
+        (when current-node
+          (when (> (tsc-node-start-position current-node) max-line-point)
+            (setq cursor-res nil))
+
+          (when (and (member (tsc-node-type current-node) identifier-node-types)
+                     (tsc-node-named-p current-node)
+                     (<= (tsc-node-start-position current-node) max-line-point))
+            (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
+
+      (when identifiers
+        (string-join (delete-dups identifiers) divider)))))
+
+(defun turbo-log--try-normalize-identifiers (identifier-formatters log-message)
+  "Format current LOG-MESSAGE by IDENTIFIER-FORMATTERS."
+  (let* ((node-type (tsc-node-type (tree-sitter-node-at-pos nil (turbo-log--get-real-point))))
+         (formatter (car (cdr-safe (assoc node-type identifier-formatters)))))
+    (if formatter
+        (format formatter log-message)
+      log-message)))
 
 ;;;###autoload
-(defun turbo-log-print-immediately (&optional past-from-clipboard-p)
+(defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
+  "Log selected region for current major mode.
+Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
+INSERT-IMMEDIATELY-P - should insert first available logger?"
+  (interactive)
+
+  (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
+      (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
+             (divider (turbo-log--get-logger-config logger-config argument-divider))
+             (identifier-node-types (turbo-log--get-logger-config logger-config identifier-node-types))
+             (log-message (turbo-log--get-log-text past-from-clipboard-p))
+             (extracted-log-message (when (and identifier-node-types (not (region-active-p)))
+                                      (turbo-log--extract-identifier-node-types identifier-node-types divider)))
+             (log-message (if (region-active-p)
+                              log-message
+                            extracted-log-message))
+             (identifier-formatters (turbo-log--get-logger-config logger-config identifier-formatter-templates))
+             (log-message (if (and identifier-formatters log-message)
+                              (turbo-log--try-normalize-identifiers identifier-formatters log-message)
+                            log-message))
+             (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
+                                       ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
+                                       (t (turbo-log--find-insert-line-number logger-config))))
+             (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
+
+        (unless logger-config
+          (message "Turbo-log: No configuration provided for %s mode" major-mode))
+
+        (when (and insert-line-number logger-config log-message)
+          (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
+          (turbo-log--insert-logger-by-mode logger-config insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
+    (message "For turbo-log package you need to enable tree-sitter-mode.")))
+
+;;;###autoload
+(defun turbo-log-print-immediately ()
   "Log selected region for current major mode without ask a logger from list.
 Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
-  (save-excursion
-    (let* ((logger-list (turbo-log--choose-mode))
-           (logger (cdr logger-list)))
-      (if logger
-          (turbo-log--handle-logger logger nil past-from-clipboard-p)))))
-
-;;;###autoload
-(defun turbo-log-comment-all-logs ()
-  "Hide all log messages made by turbo-log."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (search-forward-regexp (turbo-log--build-log-regexp 'uncommented) nil t)
-      (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
-      (search-forward ")" nil t)
-      (forward-line))))
-
-;;;###autoload
-(defun turbo-log-uncomment-all-logs ()
-  "Show all comments made by turbo-log."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (search-forward-regexp (turbo-log--build-log-regexp 'commented) nil t)
-      (turbo-log--handle-log-line 'turbo-log--toggle-current-line-comment)
-      (search-forward ")" nil t)
-      (forward-line))))
-
-;;;###autoload
-(defun turbo-log-delete-all-logs ()
-  "Delete all turbo-log loggers."
-  (interactive)
-  (save-excursion
-    (goto-char (point-min))
-    (while (search-forward-regexp (turbo-log--build-log-regexp 'both) nil t)
-      (turbo-log--handle-log-line 'kill-whole-line))))
+  (turbo-log-print t nil))
 
 ;;;###autoload
 (defun turbo-log-paste-as-logger ()
   "Past text from clipboard as logged text."
   (interactive)
   (end-of-line)
-  (turbo-log-print t)
   (forward-line)
+  (turbo-log-print nil t)
   (end-of-line))
 
 ;;;###autoload
@@ -505,10 +495,28 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   "Past text from clipboard as logged text immediately."
   (interactive)
   (end-of-line)
-  (turbo-log-print-immediately t)
   (forward-line)
+  (turbo-log-print t t)
   (end-of-line))
 
+;;;###autoload
+(defun turbo-log-comment-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'uncommented 'comment-or-uncomment-region))
+
+;;;###autoload
+(defun turbo-log-uncomment-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'commented 'comment-or-uncomment-region))
+
+;;;###autoload
+(defun turbo-log-delete-all-logs ()
+  "Hide all log messages made by turbo-log."
+  (interactive)
+  (turbo-log--handle-comments 'both (lambda (start-point end-point)
+                                      (delete-region start-point (+ end-point 1)))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
