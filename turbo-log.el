@@ -439,10 +439,10 @@ Result will be a string, divdded by DIVIDER."
       (when identifiers
         (string-join (delete-dups identifiers) divider)))))
 
-(defun turbo-log--try-normalize-identifiers (identifier-formmaters log-message)
+(defun turbo-log--try-normalize-identifiers (identifier-formatters log-message)
   "Format current LOG-MESSAGE by IDENTIFIER-FORMATTERS."
   (let* ((node-type (tsc-node-type (tree-sitter-node-at-pos nil (turbo-log--get-real-point))))
-         (formatter (car (cdr-safe (assoc node-type identifier-formmaters)))))
+         (formatter (car (cdr-safe (assoc node-type identifier-formatters)))))
     (if formatter
         (format formatter log-message)
       log-message)))
