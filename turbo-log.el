@@ -243,7 +243,7 @@ Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
            insert-position (cursor-res t))
 
 
-      (goto-char (point-min)) ;; NOTE: cause constructor and other literals could be above relative to current line
+      (goto-char (point-min))
 
       (while (and (not insert-position) cursor-res logger-jump-list)
         (setq cursor-res (cond
@@ -391,9 +391,7 @@ COMMENT-TYPE - type of comment, could be `commented' `uncommented' and `both'"
     (dolist (l loggers)
       (push (concat log-prefix (format (turbo-log--normilize-regexp l) (concat log-message "[^\'\(\);]+")) ";?") regexps))
 
-    ;; (message "regexps: %s" regexps)
     (unless logger-meta (message "Sorry, turbo-log is not available for %s." major-mode))
-    (message "regexps: %s" (string-join regexps "\\|"))
     (string-join regexps "\\\|")))
 
 (defun turbo-log--handle-comments (comment-type func)
@@ -423,7 +421,6 @@ Result will be a string, divdded by DIVIDER."
         ;; FIXME: navigation by ts-tree doesn't work properly
         (setq cursor-res (re-search-forward "[[:blank:]\n]+" nil t))
         (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
-        (message "node type: %s\nvar: %s" (tsc-node-type current-node) (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)))
 
         (when current-node
           (when (> (tsc-node-start-position current-node) max-line-point)
