@@ -316,7 +316,6 @@ when INCLUDE-CLOSE-BRACKET-P is t \n} will be inserted after log message"
       (insert "\n")
       (turbo-log--insert-with-indent insert-line-number log-msgs)
 
-      ;; TODO: separated func for hook call
       (dolist (hook post-insert-hooks)
         (when (functionp hook)
           (funcall hook))))))
@@ -330,10 +329,10 @@ When PAST-FROM-CLIPBOARD-P provided it will be inserted from clipboard."
 
 (defun turbo-log--get-real-point ()
   "Get real point.
-Cause evil change `point' function value by 1
-inside `region-p'"   (if (and (bound-and-true-p evil-mode) (region-active-p))
-                         (- (point) 1)
-                       (point)))
+Cause evil change `point' function value by 1 inside `region-p'"
+  (if (and (bound-and-true-p evil-mode) (region-active-p))
+      (- (point) 1)
+    (point)))
 
 (defun turbo-log--line-with-empty-body-p (line-number)
   "Return t when LINE-NUMBER line is function with empty body."
