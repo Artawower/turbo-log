@@ -75,7 +75,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
         '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
           :jump-list ((class_declaration (method_definition "constructor")))
           :msg-format-template "'TCL: %s'"
-          :message-node-types (identifier member_expression))
+          :identifier-node-types (identifier member_expression))
           :post-insert-hook (prettier-prettify))
 #+END_SRC
 
@@ -84,6 +84,8 @@ Where:
 =loggers= - list of available loggers, when there are more then 1 =turbo-log-print= will ask to choose logger.
 
 =jump-list= - internal command for insert current logger to specific line number by determined node type. Its a alist that consist of cons where car is node type and cdr is a alist of inserting position and optional name of foud node type, after which logger will be inserted.
+
+=identifier-node-types= - optional alist of node types for extracting identifiers
 
 =post-insert-hook= - list of hooks that will be triggered after logger inserted. Its a good place to call =format-all-buffer= or =prettier-prettify= methods.
 
@@ -98,6 +100,7 @@ Where:
 + [X] Rust
 + [-] Lua (Without tree-sitter)
 + [-] Elisp (Without tree-sitter)
++ [ ] C++
 ** Contributing
 Any contribution is greatly appreciated!
 Run =eldev test=, =checkdoc= and =package-lint-current-buffer= (from [[https://github.com/purcell/package-lint][package-lint]] ) before creating the pull request
