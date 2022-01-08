@@ -101,6 +101,7 @@ Where:
 + [-] Lua (Without tree-sitter)
 + [-] Elisp (Without tree-sitter)
 + [ ] C++
+
 ** Contributing
 Any contribution is greatly appreciated!
 Run =eldev test=, =checkdoc= and =package-lint-current-buffer= (from [[https://github.com/purcell/package-lint][package-lint]] ) before creating the pull request
