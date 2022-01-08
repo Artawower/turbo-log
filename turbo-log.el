@@ -69,7 +69,8 @@ Will not be visible when its nil."
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
     :jump-list ((class_declaration (property_identifier "constructor")))
     :msg-format-template "'TCL: %s'"
-    :message-node-types (identifier member_expression))
+    :identifier-formatter-templates ((property_identifier "this.%s"))
+    :message-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
 
 (defconst turbo-log--message-node-types nil
@@ -253,7 +254,6 @@ Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
 
       (while (and (not insert-position) cursor-res logger-jump-list)
         (setq current-node (tree-sitter-node-at-pos nil (point)))
-
         (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
           (setq cursor-res nil))
 
@@ -261,7 +261,7 @@ Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
                    (string-match search-name (turbo-log--get-node-name current-node)))
           (goto-char (tsc-node-start-position current-node))
           (setq insert-position (+ (line-number-at-pos) 1)))
-        (turbo-log--goto-next-word))
+        (setq cursor-res (turbo-log--goto-next-word)))
       insert-position)))
 
 (defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
@@ -429,11 +429,23 @@ Result will be a string, divdded by DIVIDER."
           (when (> (tsc-node-start-position current-node) max-line-point)
             (setq cursor-res nil))
 
-          (when (and (member (tsc-node-type current-node) message-node-types) (tsc-node-named-p current-node))
+          (when (and (member (tsc-node-type current-node) message-node-types)
+                     (tsc-node-named-p current-node)
+                     (<= (tsc-node-start-position current-node) max-line-point))
             (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
 
+
+      (message "TCL: [line 423][turbo-log.el] identifiers:  %s" identifiers)
       (when identifiers
         (string-join (delete-dups identifiers) divider)))))
+
+(defun turbo-log--try-normalize-identifiers (identifier-formmaters log-message)
+  "Format current LOG-MESSAGE by IDENTIFIER-FORMATTERS."
+  (let* ((node-type (tsc-node-type (tree-sitter-node-at-pos nil (turbo-log--get-real-point))))
+         (formatter (car (cdr-safe (assoc node-type identifier-formmaters)))))
+    (if formatter
+        (format formatter log-message)
+      log-message)))
 
 ;;;###autoload
 (defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
@@ -450,11 +462,14 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
              (extracted-log-message (when (and message-node-types (not (region-active-p)))
                                       (turbo-log--extract-message-node-types message-node-types divider)))
              (log-message (or extracted-log-message log-message))
+             (identifier-formatters (turbo-log--get-logger-config logger-config identifier-formatter-templates))
+             (log-message (if identifier-formatters
+                              (turbo-log--try-normalize-identifiers identifier-formatters log-message)
+                            log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number logger-config))))
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
-
 
         (unless logger-config
           (message "Turbo-log: No configuration provided for %s mode" major-mode))
