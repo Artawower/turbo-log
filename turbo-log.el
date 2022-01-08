@@ -90,7 +90,7 @@ When not provided entire region will be printed.")
     (csharp-mode (:loggers ("Console.WriteLine(%s);")))
     (javap-mode (:loggers ("System.out.println(%s);")))
     (java-mode (:loggers ("System.out.println(%s);")))
-    (ruby-mode (:loggers ("p %s" "puts %s") :comment-string "#" :argument-divider ","))
+    (ruby-mode (:loggers ("p %s;" "puts %s;") :comment-string "#" :argument-divider ","))
     (lua-mode (:loggers ("print(%s)")))
     (rust-mode (:loggers ("println!(%s);")))
     (rustic-mode (:loggers ("println!(%s);" "{}")))
@@ -231,7 +231,7 @@ LOGGER-CONFIG - configuration of current logger."
 
 (defun turbo-log--goto-next-word ()
   "Navigate to next word."
-  (re-search-forward "[[:blank:]\n]+" nil t))
+  (re-search-forward "[[:blank:]\n\(]+" nil t))
 
 (defun turbo-log--get-node-name (node)
   "Return name of current treesitter NODE if its a named node."
@@ -434,8 +434,6 @@ Result will be a string, divdded by DIVIDER."
                      (<= (tsc-node-start-position current-node) max-line-point))
             (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
 
-
-      (message "TCL: [line 423][turbo-log.el] identifiers:  %s" identifiers)
       (when identifiers
         (string-join (delete-dups identifiers) divider)))))
 
@@ -461,9 +459,11 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
              (log-message (turbo-log--get-log-text past-from-clipboard-p))
              (extracted-log-message (when (and message-node-types (not (region-active-p)))
                                       (turbo-log--extract-message-node-types message-node-types divider)))
-             (log-message (or extracted-log-message log-message))
+             (log-message (if (region-active-p)
+                              log-message
+                            extracted-log-message))
              (identifier-formatters (turbo-log--get-logger-config logger-config identifier-formatter-templates))
-             (log-message (if identifier-formatters
+             (log-message (if (and identifier-formatters log-message)
                               (turbo-log--try-normalize-identifiers identifier-formatters log-message)
                             log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
@@ -474,7 +474,7 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
         (unless logger-config
           (message "Turbo-log: No configuration provided for %s mode" major-mode))
 
-        (when (and insert-line-number logger-config)
+        (when (and insert-line-number logger-config log-message)
           (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
           (turbo-log--insert-logger-by-mode logger-config insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
     (message "For turbo-log package you need to enable tree-sitter-mode.")))
