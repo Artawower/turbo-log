@@ -98,6 +98,7 @@ Where:
 + [X] Java
 + [X] C#
 + [X] Rust
++ [X] Ruby
 + [-] Lua (Without tree-sitter)
 + [-] Elisp (Without tree-sitter)
 + [ ] C++
