@@ -67,7 +67,7 @@ Will not be visible when its nil."
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
     :jump-list ((class_declaration (property_identifier "constructor")))
-    :msg-format-template "'TCL: %s'"
+    :msg-format-template "\"TCL: %s\""
     :identifier-formatter-templates ((property_identifier "this.%s"))
     :identifier-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
