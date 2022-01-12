@@ -72,11 +72,11 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 
 #+BEGIN_SRC emacs-lisp
 (setcdr (assq 'typescript-mode turbo-log-loggers)
-        '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-          :jump-list ((class_declaration (method_definition "constructor")))
-          :msg-format-template "'TCL: %s'"
-          :identifier-node-types (identifier member_expression))
-          :post-insert-hook (prettier-prettify))
+        '((:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+           :jump-list ((class_declaration (method_definition "constructor")))
+           :msg-format-template "\"TCL: %s\""
+           :identifier-node-types (identifier member_expression)
+           :post-insert-hook (prettier-prettify))))
 #+END_SRC
 
 Where:
