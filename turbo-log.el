@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.0.0
+;; Version: 2.1.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -145,6 +145,62 @@ I know that it's a magic. And huge evil. But i like it."
   `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (seq-concatenate 'string ":" (symbol-name ',key))))))
        (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log-" (symbol-name ',key))))
        (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log--" (symbol-name ',key))))))
+
+(defmacro turbo-log-configure (&rest configs)
+  "Macro for configure turbo-log package.
+CONFIGS - plist of configurations
+
+:modes - modes that should apply configurations
+:strategy - strategy of configurations, could be `merge' and `replace'
+`merge' is default value.
+
+:loggers - alist of available loggers for current mode
+:jump-list - list of teleport positions from one tree-sitter node to another
+:msg-format-template - format of entire string message placed before literals
+:identifier-formatter-templates - alist of formatters where car is node type and
+cdr is formatter template
+:identifier-node-types - node types of variables/expressions that will be used as output
+literal of logger
+:line-number-format-template - formatter for line number
+:buffer-name-format-template - formatter for current buffer name
+:payload-format-template - formatter for payload
+:argument-divider - formatter for argument divider
+:block-statements - tree-sitter node types which indicate about block statement
+:top-level-structures - top level structure that indicated about stopping of parsing syntax tree
+:nodes-for-end-position-inserting - tree-sitter node types that indicate current log
+has to be inserted after end position of detected exps
+:nodes-allowed-insert-next-line - tree-sitter nodes that allow to insert logger next line
+:nodes-allowed-insert-previous-line - tree-sitter list of nodes that indicate logger has to be
+ inserted previous line
+:nodes-ignored - list of nodes which prevent auto logger inserting
+:comment-string - string for commenting current mode"
+
+  (let* ((strategy (or (plist-get configs :strategy) 'replace))
+         (excluded-keys '(:modes :strategy))
+         (modes (plist-get configs :modes))
+         current-config)
+
+    (dolist (k excluded-keys)
+      (setq configs (map-delete configs k)))
+
+    (dolist (mode modes)
+      (unless (assoc mode turbo-log-loggers)
+        (push `(,mode nil) turbo-log-loggers))
+
+      (setq current-config (car (cdr-safe (assoc mode turbo-log-loggers))))
+
+      (if (eq strategy 'replace)
+          (setq current-config configs)
+
+        (cl-loop for (k v) on configs by 'cddr do
+              (if current-config
+                  (plist-put current-config k v)
+                (setq current-config `(,k ,v)))))
+
+      (if (assq mode turbo-log-loggers)
+          (setcdr (assq mode turbo-log-loggers)
+                  `(,current-config))
+        `(push '(,mode '(,current-config)) ,turbo-log-loggers)))))
 
 (defun turbo-log--find-top-level-node (node &optional logger-config)
   "Find top level structure for current NODE.

@@ -71,15 +71,22 @@ It works for *js-mode, typescript-mode, go-mode and python*.
 =turbo-log-loggers= - its a most interesting part of your config. You can use every settings as plist for specific logger (without =turbo-log= prefix), for example:
 
 #+BEGIN_SRC emacs-lisp
-(setcdr (assq 'typescript-mode turbo-log-loggers)
-        '((:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-           :jump-list ((class_declaration (method_definition "constructor")))
-           :msg-format-template "\"TCL: %s\""
-           :identifier-node-types (identifier member_expression)
-           :post-insert-hook (prettier-prettify))))
+(turbo-log-configure
+ :modes (typescript-mode js2-mode web-mode)
+ :strategy merge
+
+ :loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
+ :jump-list ((class_declaration (method_definition "constructor")))
+ :identifier-node-types (identifier member_expression)
+ :post-insert-hook (prettier-prettify)
+ :msg-format-template "'🦄: %s'")
 #+END_SRC
 
 Where:
+
+=modes= - list of modes which have to be updated
+
+=strategy= - update strategy, =merge= will update existing plist (only first level of nested structure), =replace= will override all mode settings
 
 =loggers= - list of available loggers, when there are more then 1 =turbo-log-print= will ask to choose logger.
 
