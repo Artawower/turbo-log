@@ -66,9 +66,14 @@ Will not be visible when its nil."
 
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-    :jump-list ((class_declaration (property_identifier "constructor")))
+    :jump-list ((class_declaration
+                 (:current-node-types (property_identifier)
+                  :destination-node-names ("constructor")
+                  :parent-node-types (public_field_definition))))
     :msg-format-template "'TCL: %s'"
-    :identifier-formatter-templates ((property_identifier "this.%s"))
+    :identifier-formatter-rules ((property_identifier
+                                      (:formatter "this.%s"
+                                       :parent-node-types (public_field_definition))))
     :identifier-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
 
@@ -156,22 +161,33 @@ CONFIGS - plist of configurations
 
 :loggers - alist of available loggers for current mode
 :jump-list - list of teleport positions from one tree-sitter node to another
+where car is current node type and cdr is a plist of neighbor nodes
+   :current-node-types - current node types of teleport
+   :destination-node-name - node name where logger should be inserted
+   :parent-node-types - list of parent node types
+   jump will happen only after full mathing of this fields
 :msg-format-template - format of entire string message placed before literals
-:identifier-formatter-templates - alist of formatters where car is node type and
-cdr is formatter template
-:identifier-node-types - node types of variables/expressions that will be used as output
+:identifier-formatter-rules - alist of formatters where car is node type and
+cdr is plist of:
+   :formatter - string template
+   :parent-node-types - alist of tree-sitter nodes that have to be matched
+:identifier-node-types - node types of variables/expressions that will be
+used as output
 literal of logger
 :line-number-format-template - formatter for line number
 :buffer-name-format-template - formatter for current buffer name
 :payload-format-template - formatter for payload
 :argument-divider - formatter for argument divider
 :block-statements - tree-sitter node types which indicate about block statement
-:top-level-structures - top level structure that indicated about stopping of parsing syntax tree
-:nodes-for-end-position-inserting - tree-sitter node types that indicate current log
+:top-level-structures - top level structure that indicated about stopping of
+parsing syntax tree
+:nodes-for-end-position-inserting - tree-sitter node types that indicate current
+log
 has to be inserted after end position of detected exps
-:nodes-allowed-insert-next-line - tree-sitter nodes that allow to insert logger next line
-:nodes-allowed-insert-previous-line - tree-sitter list of nodes that indicate logger has to be
- inserted previous line
+:nodes-allowed-insert-next-line - tree-sitter nodes that allow to insert logger
+next line
+:nodes-allowed-insert-previous-line - tree-sitter list of nodes that indicate
+logger has to be inserted previous line
 :nodes-ignored - list of nodes which prevent auto logger inserting
 :comment-string - string for commenting current mode"
 
@@ -193,9 +209,9 @@ has to be inserted after end position of detected exps
           (setq current-config configs)
 
         (cl-loop for (k v) on configs by 'cddr do
-              (if current-config
-                  (plist-put current-config k v)
-                (setq current-config `(,k ,v)))))
+                 (if current-config
+                     (plist-put current-config k v)
+                   (setq current-config `(,k ,v)))))
 
       (if (assq mode turbo-log-loggers)
           (setcdr (assq mode turbo-log-loggers)
@@ -290,37 +306,51 @@ LOGGER-CONFIG - configuration of current logger."
   (when (tsc-node-named-p node)
     (buffer-substring (tsc-node-start-position node) (tsc-node-end-position node))))
 
-(defun turbo-log--find-parent-jump-line-number (parent-node &optional logger-config)
+(defun turbo-log--find-parent-jump-line-number (node parent-node &optional logger-config)
   "Find insert position.
-Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG."
+Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG.
+NODE - current node under cursor,"
+  ;; (message "TCL: [line 302][turbo-log.el] parent-node:  %s" (tsc-node-type parent-node))
   (save-excursion
     (let* ((logger-jump-list (turbo-log--get-logger-config logger-config jump-list))
            (current-node parent-node)
-           (jump-literal-name (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
-           (jump-literal-name (when jump-literal-name (car (cdr jump-literal-name))))
-           (search-literal (when jump-literal-name (car jump-literal-name)))
-           (search-name (when logger-jump-list (car (cdr-safe jump-literal-name))))
-           insert-position (cursor-res (turbo-log--goto-next-word)))
+           (jump-literal-config (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
+           (jump-literal-config (when jump-literal-config (car (cdr jump-literal-config))))
+
+           (matched-literals (when jump-literal-config (plist-get jump-literal-config :current-node-types)))
+           (destination-names (when jump-literal-config (plist-get jump-literal-config :destination-node-names)))
+           (parent-node-types (when jump-literal-config (plist-get jump-literal-config :parent-node-types)))
+           insert-position
+           (parent-matched (and parent-node-types
+                                (not (member (tsc-node-type (tsc-get-parent node)) parent-node-types))))
+           (cursor-res (turbo-log--goto-next-word)))
 
       (goto-char (point-min))
 
-      (while (and (not insert-position) cursor-res logger-jump-list)
-        (setq current-node (tree-sitter-node-at-pos nil (point)))
-        (when (eq (tsc-node-type current-node) (tsc-node-type parent-node))
-          (setq cursor-res nil))
+      ;; (message "matched-literals: %s\nparent node: %s\ndestination names: %s\nparent-node-types: %s\nparent of parent node type %s\n"
+      ;;          matched-literals
+      ;;          (tsc-node-type parent-node)
+      ;;          destination-names
+      ;;          parent-node-types
+      ;;          (tsc-node-type (tsc-get-parent node)))
 
-        (when (and (eq (tsc-node-type current-node) search-literal)
-                   (string-match search-name (turbo-log--get-node-name current-node)))
+      (while (and (not insert-position) cursor-res logger-jump-list (not parent-matched))
+        (setq current-node (tree-sitter-node-at-pos nil (point)))
+
+        (when (and (member (tsc-node-type current-node) matched-literals)
+                   (member (turbo-log--get-node-name current-node) destination-names))
           (goto-char (tsc-node-start-position current-node))
           (setq insert-position (+ (line-number-at-pos) 1)))
+
         (setq cursor-res (turbo-log--goto-next-word)))
       insert-position)))
 
-(defun turbo-log--get-insert-line-number-by-node-type (node-type parent-node &optional logger-config)
-  "Return line number for insertion by current NODE-TYPE and PARENT-NODE.
+(defun turbo-log--get-insert-line-number-by-node-types (node node-type parent-node &optional logger-config)
+  "Return line number for insertion.
+By current NODE, panrent NODE-TYPE and PARENT-NODE.
 LOGGER-CONFIG - configuration of current logger."
 
-  (let* ((jump-line-number (turbo-log--find-parent-jump-line-number parent-node logger-config)))
+  (let* ((jump-line-number (turbo-log--find-parent-jump-line-number node parent-node logger-config)))
     (cond (jump-line-number jump-line-number)
           ((turbo-log--node-end-position-insert-p node-type parent-node logger-config))
           ((turbo-log--node-next-line-insert-p node-type logger-config) (+ (line-number-at-pos) 1))
@@ -402,7 +432,8 @@ Cause evil change `point' function value by 1 inside `region-p'"
            (parent-node-type-pair (turbo-log--find-top-level-node node logger-config))
            (parent-node (car parent-node-type-pair))
            (parent-node-type (car (cdr parent-node-type-pair)))
-           (insert-line-number (turbo-log--get-insert-line-number-by-node-type parent-node-type parent-node logger-config)))
+           ;; TODO: move parent node type to internal function
+           (insert-line-number (turbo-log--get-insert-line-number-by-node-types node parent-node-type parent-node logger-config)))
       insert-line-number)))
 
 (defun turbo-log--remove-closed-bracket (line-number)
@@ -488,11 +519,20 @@ Result will be a string, divdded by DIVIDER."
       (when identifiers
         (string-join (delete-dups identifiers) divider)))))
 
-(defun turbo-log--try-normalize-identifiers (identifier-formatters log-message)
-  "Format current LOG-MESSAGE by IDENTIFIER-FORMATTERS."
-  (let* ((node-type (tsc-node-type (tree-sitter-node-at-pos nil (turbo-log--get-real-point))))
-         (formatter (car (cdr-safe (assoc node-type identifier-formatters)))))
-    (if formatter
+(defun turbo-log--try-normalize-identifiers (identifier-formatter-rules log-message)
+  "Format current LOG-MESSAGE by IDENTIFIER-FORMATTER-RULES.
+IDENTIFIER-FORMATTER-RULES - is plist with next fields:
+:formatter - string of formatter template
+:parent-node-types - list of tree-sitter nodes "
+
+  (let* ((current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+         (node-type (tsc-node-type current-node))
+         (parent-node-type (tsc-node-type (tsc-get-parent current-node)))
+         (formatter-configs (car (cdr-safe (assoc node-type identifier-formatter-rules))))
+         (formatter (plist-get formatter-configs :formatter))
+         (parent-node-types (plist-get formatter-configs :parent-node-types)))
+
+    (if (and formatter (or (not parent-node-types) (member parent-node-type parent-node-types)))
         (format formatter log-message)
       log-message)))
 
@@ -513,9 +553,9 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
              (log-message (if (region-active-p)
                               log-message
                             extracted-log-message))
-             (identifier-formatters (turbo-log--get-logger-config logger-config identifier-formatter-templates))
-             (log-message (if (and identifier-formatters log-message)
-                              (turbo-log--try-normalize-identifiers identifier-formatters log-message)
+             (identifier-formatter-rules (turbo-log--get-logger-config logger-config identifier-formatter-rules))
+             (log-message (if (and identifier-formatter-rules log-message)
+                              (turbo-log--try-normalize-identifiers identifier-formatter-rules log-message)
                             log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
                                        ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
