@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.1.1
+;; Version: 2.1.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -72,8 +72,8 @@ Will not be visible when its nil."
                   :parent-node-types (public_field_definition))))
     :msg-format-template "'TCL: %s'"
     :identifier-formatter-rules ((property_identifier
-                                      (:formatter "this.%s"
-                                       :parent-node-types (public_field_definition))))
+                                  (:formatter "this.%s"
+                                   :parent-node-types (public_field_definition))))
     :identifier-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
 
@@ -543,8 +543,12 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
 
-  (if (or (bound-and-true-p tree-sitter-mode) turbo-log-allow-insert-without-tree-sitter-p)
-      (let* ((logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
+  (if (or (and (bound-and-true-p tree-sitter-mode)
+               (assoc major-mode tree-sitter-major-mode-language-alist))
+          turbo-log-allow-insert-without-tree-sitter-p)
+      (let* ((tsc-allowed-p (and (bound-and-true-p tree-sitter-mode)
+                                 (assoc major-mode tree-sitter-major-mode-language-alist)))
+             (logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
              (divider (turbo-log--get-logger-config logger-config argument-divider))
              (identifier-node-types (turbo-log--get-logger-config logger-config identifier-node-types))
              (log-message (turbo-log--get-log-text past-from-clipboard-p))
@@ -554,11 +558,13 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
                               log-message
                             extracted-log-message))
              (identifier-formatter-rules (turbo-log--get-logger-config logger-config identifier-formatter-rules))
-             (log-message (if (and identifier-formatter-rules log-message)
+             (log-message (if (and identifier-formatter-rules log-message tsc-allowed-p)
                               (turbo-log--try-normalize-identifiers identifier-formatter-rules log-message)
                             log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
-                                       ((not (bound-and-true-p tree-sitter-mode)) (+ (line-number-at-pos) 1))
+                                       ((not (and (bound-and-true-p tree-sitter-mode)
+                                                  (assoc major-mode tree-sitter-major-mode-language-alist)))
+                                        (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number logger-config))))
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
 
