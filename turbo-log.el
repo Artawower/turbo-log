@@ -88,6 +88,8 @@ When not provided entire region will be printed.")
     (js2-mode ,turbo-log--default-ecmascript-config)
     (js3-mode ,turbo-log--default-ecmascript-config)
     (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
+    (typescript-ts-mode ,turbo-log--default-ecmascript-config)
+    (tsx-ts-mode ,turbo-log--default-ecmascript-config)
     (rjsx-mode ,turbo-log--default-ecmascript-config)
     (ng2-ts-mode ,turbo-log--default-ecmascript-config)
     (rjsx-mode ,turbo-log--default-ecmascript-config)
@@ -101,10 +103,13 @@ When not provided entire region will be printed.")
     (rust-mode (:loggers ("println!(%s);")))
     (rustic-mode (:loggers ("println!(%s);" "{}")))
     (python-mode (:loggers ("print(%s)") :comment-string "#"))
+    (python-ts-mode (:loggers ("print(%s)") :comment-string "#"))
     (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
     (lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
     (lisp-interaction-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
     (go-mode (:loggers ("fmt.Println(%s)"
+                        ("fmt.Printf(%s)" " %v"))))
+    (go-ts-mode (:loggers ("fmt.Println(%s)"
                         ("fmt.Printf(%s)" " %v")))))
   "Mode/config pairs."
   :group 'turbo-log
