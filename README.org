@@ -53,7 +53,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
   (setq turbo-log-allow-insert-without-tree-sitter-p t))
   #+END_SRC
 *** Cloning the repo
-Clone the repo to a directory, say ~~./emacs.d/lisp~ with
+Clone the repo to a directory, say =./emacs.d/lisp= with
 #+BEGIN_SRC shell
 git clone https://github.com/chookity-pokk/turbo-log.git
 #+END_SRC
