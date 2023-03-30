@@ -52,6 +52,29 @@ It works for *js-mode, typescript-mode, go-mode and python*.
   (setq turbo-log-msg-format-template "\"🚀: %s\"")
   (setq turbo-log-allow-insert-without-tree-sitter-p t))
   #+END_SRC
+*** Cloning the repo
+Clone the repo to a directory, say =./emacs.d/lisp= with
+#+BEGIN_SRC shell
+git clone https://github.com/chookity-pokk/turbo-log.git
+#+END_SRC
+
+Then put this in your init to load the package
+#+BEGIN_SRC elisp
+(add-to-list 'load-path "~/.emacs.d/lisp/turbo-log")
+(require 'turbo-log)
+(use-package turbo-log
+  :bind (("C-s-l" . turbo-log-print)
+         ("C-s-i" . turbo-log-print-immediately)
+         ("C-s-h" . turbo-log-comment-all-logs)
+         ("C-s-s" . turbo-log-uncomment-all-logs)
+         ("C-s-[" . turbo-log-paste-as-logger)
+         ("C-s-]" . turbo-log-paste-as-logger-immediately)
+         ("C-s-d" . turbo-log-delete-all-logs))
+  :config
+  (setq turbo-log-msg-format-template "\"🚀: %s\"")
+  (setq turbo-log-allow-insert-without-tree-sitter-p t))
+#+END_SRC
+
 
 ** Customization
 *** Common configs
