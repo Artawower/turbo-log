@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.1.2
+;; Version: 2.2.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -59,6 +59,9 @@ Will not be visible when its nil."
   :group 'turbo-log
   :type 'string)
 
+(defcustom turbo-log-context-format-template "[%s] "
+  "Template for formatting context name.")
+
 (defcustom turbo-log-argument-divider ","
   "Divider for list of arguments."
   :group 'turbo-log
@@ -66,15 +69,15 @@ Will not be visible when its nil."
 
 (defconst turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-    :jump-list ((class_declaration
-                 (:current-node-types (property_identifier)
-                  :destination-node-names ("constructor")
-                  :parent-node-types (public_field_definition))))
-    :msg-format-template "'TCL: %s'"
-    :identifier-formatter-rules ((property_identifier
-                                  (:formatter "this.%s"
-                                   :parent-node-types (public_field_definition))))
-    :identifier-node-types (identifier member_expression property_identifier))
+             :jump-list ((class_declaration
+                          (:current-node-types (property_identifier)
+                                               :destination-node-names ("constructor")
+                                               :parent-node-types (public_field_definition))))
+             :msg-format-template "'TCL: %s'"
+             :identifier-formatter-rules ((property_identifier
+                                           (:formatter "this.%s"
+                                                       :parent-node-types (public_field_definition))))
+             :identifier-node-types (identifier member_expression property_identifier))
   "Common configurations for ecmascript`s based modes.")
 
 (defconst turbo-log--identifier-node-types nil
@@ -110,7 +113,7 @@ When not provided entire region will be printed.")
     (go-mode (:loggers ("fmt.Println(%s)"
                         ("fmt.Printf(%s)" " %v"))))
     (go-ts-mode (:loggers ("fmt.Println(%s)"
-                        ("fmt.Printf(%s)" " %v")))))
+                           ("fmt.Printf(%s)" " %v")))))
   "Mode/config pairs."
   :group 'turbo-log
   :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
@@ -146,16 +149,44 @@ In such case log line will be inserted next line."
 (defconst turbo-log--comment-string "//"
   "Common string for find comments.")
 
+(defvar turbo-log--project-context nil
+  "Context name for current project or for default when project could not be determined.")
+
 (defun turbo-log--symbol-value-or-nil (symbol)
   "Return value by SYMBOL if exist, if not - return nil."
   (if (boundp symbol)
       (symbol-value symbol)
     nil))
 
+(defun turbo-log--get-project-name ()
+  "Return current project name."
+  (cond
+   ((fboundp 'projectile-project-name)
+    (projectile-project-name))
+   ((and (fboundp 'project-name) (project-current))
+    (project-name (project-current)))
+   (t "default")))
+
+(defun turbo-log-set-context ()
+  "Setup context for current project."
+  (interactive)
+  (let* ((context (read-string "Enter current context: " (turbo-log--get-context)))
+         (project-name (turbo-log--get-project-name)))
+    (if (assoc project-name turbo-log--project-context)
+        (setcdr (assoc project-name turbo-log--project-context) context)
+      (push `(,project-name . ,context) turbo-log--project-context))))
+
+(defun turbo-log--get-context ()
+  "Return context for the current project."
+  (let* ((project-name (turbo-log--get-project-name))
+         (context (cdr (assoc project-name turbo-log--project-context))))
+    (when context
+      context)))
+
 (defmacro turbo-log--get-logger-config (logger-config key)
   "Magic macros for extract config from LOGGER-CONFIG plist by KEY.
 When value is nil config will be taken from global scope.
-I know that it's a magic. And huge evil. But i like it."
+I know that it's a magic.  And huge evil.  But i like it."
   `(or (when ,logger-config (plist-get ,logger-config (symbol-value (intern (seq-concatenate 'string ":" (symbol-name ',key))))))
        (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log-" (symbol-name ',key))))
        (turbo-log--symbol-value-or-nil (intern (seq-concatenate 'string "turbo-log--" (symbol-name ',key))))))
@@ -265,8 +296,12 @@ LOGGER-CONFIG - configuration of current logger."
 Insert LINE-NUMBER and buffer name."
 
   (let* ((line-number (if turbo-log-line-number-format-template (format turbo-log-line-number-format-template line-number)))
-         (buffer-name (if turbo-log-buffer-name-format-template (format turbo-log-buffer-name-format-template (buffer-name)))))
-    (concat line-number buffer-name)))
+         (current-context (turbo-log--get-context))
+         (context-exist (and current-context (not (string= current-context ""))))
+         (formatted-context (when context-exist (format turbo-log-context-format-template current-context)))
+         (buffer-name (when (and turbo-log-buffer-name-format-template (not context-exist))
+                        (format turbo-log-buffer-name-format-template (buffer-name)))))
+    (concat line-number formatted-context buffer-name)))
 
 (defun turbo-log--get-line-text (line-number)
   "Get text from LINE-NUMBER under point."
@@ -532,7 +567,7 @@ Result will be a string, divdded by DIVIDER."
   "Format current LOG-MESSAGE by IDENTIFIER-FORMATTER-RULES.
 IDENTIFIER-FORMATTER-RULES - is plist with next fields:
 :formatter - string of formatter template
-:parent-node-types - list of tree-sitter nodes "
+:parent-node-types - list of tree-sitter nodes"
 
   (let* ((current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
          (node-type (tsc-node-type current-node))

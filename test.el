@@ -39,8 +39,8 @@ function myFuncWithEmptyBody(qwwe) {}")
 (ert-deftest test-turbo-log-get-logger-config ()
   (setq turbo-log-test-logger-config
         '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
-          :msg-format-template "'TCL: %s'"
-          :buffer-name-format-template "(%s)"))
+                   :msg-format-template "'TCL: %s'"
+                   :buffer-name-format-template "(%s)"))
 
   (setq-local turbo-log-payload-format-template "%s - ")
 
@@ -83,7 +83,7 @@ function myFuncWithEmptyBody(qwwe) {}")
    (should (equal "  private myAnotherVariable: any;\n" (turbo-log--get-line-text 4)))))
 
 
-(ert-deftest test-turbo-log-get-line-text ()
+(ert-deftest test-turbo-log-get-line-text2 ()
   (test-inside-mock-buffer
    ;; NOTE: this t points from typescript example
    (set-mark 208)
@@ -117,12 +117,12 @@ function myFuncWithEmptyBody(qwwe) {}")
 
 (ert-deftest test-turbo-log-print-immediately ()
   (test-inside-typescript-mode-buffer
-    "class TestClass {
+   "class TestClass {
   public myMethod(arg: number): number {
     return arg * 2;
   }
 }"
-    ;; NOTE: point for arg variable
+   ;; NOTE: point for arg variable
    (set-mark 37)
    (goto-char 40)
    (turbo-log-print-immediately)
@@ -135,8 +135,8 @@ function myFuncWithEmptyBody(qwwe) {}")
 
 (ert-deftest test-turbo-log-print-immediately-with-blank-body ()
   (test-inside-typescript-mode-buffer
-    "function testFunc(arg0: string) {}"
-    ;; NOTE: point for arg0 variable
+   "function testFunc(arg0: string) {}"
+   ;; NOTE: point for arg0 variable
    (set-mark 19)
    (goto-char 23)
    (turbo-log-print-immediately)
@@ -146,7 +146,7 @@ function myFuncWithEmptyBody(qwwe) {}")
 
 (ert-deftest test-turbo-log-print-long-line-variable ()
   (test-inside-typescript-mode-buffer
-    "function test() {
+   "function test() {
   const foo = 1;
   const bar = 2;
   const b = [1, 2, 3,
@@ -179,11 +179,11 @@ function myFuncWithEmptyBody(qwwe) {}")
   const hello = \"Hello\";
   return hello;
 }"
-  (set-mark 29)
-  (deactivate-mark)
-  (goto-char 29)
-  (turbo-log-print-immediately)
-  (should (equal (buffer-substring (point-min) (point-max)) "function test(): string {
+   (set-mark 29)
+   (deactivate-mark)
+   (goto-char 29)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "function test(): string {
   const hello = \"Hello\";
   console.log('TCL: [line 3][*buffer-for-test*] hello: ', hello)
   return hello;
@@ -195,11 +195,11 @@ function myFuncWithEmptyBody(qwwe) {}")
    "function test(hello: number): string {
   return hello;
 }"
-  ;; NOTE: hello indentifiert from return statement
-  (set-mark 49)
-  (goto-char 54)
-  (turbo-log-print-immediately)
-  (should (equal (buffer-substring (point-min) (point-max)) "function test(hello: number): string {
+   ;; NOTE: hello indentifiert from return statement
+   (set-mark 49)
+   (goto-char 54)
+   (turbo-log-print-immediately)
+   (should (equal (buffer-substring (point-min) (point-max)) "function test(hello: number): string {
   console.log('TCL: [line 2][*buffer-for-test*] hello: ', hello)
   return hello;
 }"))))
