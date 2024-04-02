@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.2.1
+;; Version: 2.2.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -103,8 +103,8 @@ When not provided entire region will be printed.")
     (java-mode (:loggers ("System.out.println(%s);")))
     (ruby-mode (:loggers ("p %s;" "puts %s;") :comment-string "#" :argument-divider ","))
     (lua-mode (:loggers ("print(%s)")))
-    (rust-mode (:loggers ("println!(%s);")))
-    (rustic-mode (:loggers ("println!(%s);" "{}")))
+    (rust-mode (:loggers ("println!(%s);") :payload-format-template "%s: {}"))
+    (rustic-mode (:loggers ("println!(%s);") :payload-format-template "%s: {}"))
     (python-mode (:loggers ("print(%s)") :comment-string "#"))
     (python-ts-mode (:loggers ("print(%s)") :comment-string "#"))
     (emacs-lisp-mode (:loggers (("(message %s)" " %s")) :comment-string ";;" :argument-divider ""))
