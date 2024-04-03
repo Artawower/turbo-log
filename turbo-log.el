@@ -5,7 +5,7 @@
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
 ;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.2.2
+;; Version: 2.2.3
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -60,7 +60,9 @@ Will not be visible when its nil."
   :type 'string)
 
 (defcustom turbo-log-context-format-template "[%s] "
-  "Template for formatting context name.")
+  "Template for formatting context name."
+  :group 'turbo-log
+  :type 'string)
 
 (defcustom turbo-log-argument-divider ","
   "Divider for list of arguments."
@@ -150,7 +152,8 @@ In such case log line will be inserted next line."
   "Common string for find comments.")
 
 (defvar turbo-log--project-context nil
-  "Context name for current project or for default when project could not be determined.")
+  "Context name for current project.
+Or for default when project could not be determined.")
 
 (defun turbo-log--symbol-value-or-nil (symbol)
   "Return value by SYMBOL if exist, if not - return nil."
@@ -538,11 +541,11 @@ FUNC - function that will accept start and end point of found log line."
 
 (defun turbo-log--extract-identifier-node-types (identifier-node-types divider)
   "Extract every nodes from current line that contained by IDENTIFIER-NODE-TYPES.
-Result will be a string, divdded by DIVIDER."
+Result will be a string, divided by DIVIDER."
 
   (save-excursion
     (beginning-of-line-text)
-    (let* ((max-line-point (point-at-eol))
+    (let* ((max-line-point (line-end-position))
            (current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
            (cursor-res t)
            (identifiers '()))

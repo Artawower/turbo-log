@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    paths-ignore: ['**.md', '**.adoc']
+    paths-ignore: ["**.md", "**.adoc"]
   pull_request:
-    paths-ignore: ['**.md', '**.adoc']
+    paths-ignore: ["**.md", "**.adoc"]
 
 jobs:
   test:
@@ -13,30 +13,27 @@ jobs:
 
     strategy:
       matrix:
-        emacs_version: ['25.1', '25.2', '25.3',
-                        '26.1', '26.2', '26.3',
-                        '27.1', '27.2',
-                        'snapshot']
+        emacs_version: ["25.1", "26.1", "27.1", "28.1", "29.1"]
 
     steps:
-    - name: Set up Emacs
-      uses: purcell/setup-emacs@master
-      with:
-        version: ${{matrix.emacs_version}}
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{matrix.emacs_version}}
 
-    - name: Install Eldev
-      run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
+      - name: Install Eldev
+        run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
 
-    - name: Check out the source code
-      uses: actions/checkout@v2
+      - name: Check out the source code
+        uses: actions/checkout@v2
 
-    - name: Install node js for tree-sitter
-      uses: actions/setup-node@v2
-      with:
-        node-version: '16'
-    - name: Install tree-sitter
-      run: npm install -g tree-sitter-cli@0.19.3
-    - name: Test the project
-      run: |
-        eldev prepare && eldev -p -dtT -C test
-        eldev prepare && eldev -p -dtT -C compile --warnings-as-errors turbo-log.el
+      - name: Install node js for tree-sitter
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+      - name: Install tree-sitter
+        run: npm install -g tree-sitter-cli@0.19.3
+      - name: Test the project
+        run: |
+          eldev prepare && eldev -p -dtT -C test
+          eldev prepare && eldev -p -dtT -C compile --warnings-as-errors turbo-log.el
