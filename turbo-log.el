@@ -1,4 +1,4 @@
-;;; turbo-log.el --- The simple package for fast log selected region                     -*- lexical-binding: t; -*-
+;;; turbo-log.el --- The simple package for fast log selected region        -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021 Artur Yaroshenko
 
@@ -80,7 +80,9 @@ Will not be visible when its nil."
                                            (:formatter "this.%s"
                                                        :parent-node-types (public_field_definition))))
              :identifier-node-types ("identifier" "member_expression" "property_identifier"))
-  "Common configurations for ecmascript`s based modes.")
+  "Common configurations for ecmascript`s based modes."
+  :group 'turbo-log
+  :type 'plist)
 
 (defconst turbo-log--identifier-node-types nil
   "List of nodes that will be printed from current line.
