@@ -4,7 +4,7 @@
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "29.1") (s "1.12.0"))
+;; Package-Requires: ((emacs "29") (s "1.12.0"))
 ;; Version: 3.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
@@ -94,6 +94,7 @@ When not provided entire region will be printed.")
     (js3-mode ,turbo-log--default-ecmascript-config)
     (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
     (typescript-ts-mode ,turbo-log--default-ecmascript-config)
+    (js-ts-mode ,turbo-log--default-ecmascript-config)
     (tsx-ts-mode ,turbo-log--default-ecmascript-config)
     (rjsx-mode ,turbo-log--default-ecmascript-config)
     (ng2-ts-mode ,turbo-log--default-ecmascript-config)
@@ -668,6 +669,14 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (turbo-log--handle-comments 'both (lambda (start-point end-point)
                                       (delete-region start-point (+ end-point 1)))))
+
+(defun turbo-log-kill-context ()
+  "Kill context for current project."
+  (interactive)
+  (let* ((project-name (turbo-log--get-project-name))
+         (context (cdr (assoc project-name turbo-log--project-context))))
+    (when context
+      (kill-new context))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here
