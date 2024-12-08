@@ -21,19 +21,6 @@ This project inspired by a similar package for [[https://marketplace.visualstudi
 It works for *js-mode, typescript-mode, go-mode and python*.
 ** How it works?
 [[./images/sample.gif]]
-** Requirements
-[[https://github.com/emacs-tree-sitter/elisp-tree-sitter][tree-sitter]] is required for correct work.
-
-#+BEGIN_SRC emacs-lisp
-(use-package tree-sitter-langs
-  :ensure t
-  :defer t)
-
-(use-package tree-sitter
-  :ensure t
-  :after tree-sitter-langs)
-#+END_SRC
-
 ** Installation
 *** quelpa
 #+BEGIN_SRC emacs-lisp
@@ -49,7 +36,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
          ("C-s-d" . turbo-log-delete-all-logs))
   :config
   (setq turbo-log-msg-format-template "\"🚀: %s\"")
-  (setq turbo-log-allow-insert-without-tree-sitter-p t))
+  (setq turbo-log-allow-insert-without-treesit-p t))
   #+END_SRC
 *** doom
 #+BEGIN_SRC emacs-lisp
@@ -66,7 +53,7 @@ It works for *js-mode, typescript-mode, go-mode and python*.
          ("C-s-x" . turbo-log-delete-all-logs))
   :config
   (setq turbo-log-msg-format-template "\"🚀: %s\"")
-  (setq turbo-log-allow-insert-without-tree-sitter-p t))
+  (setq turbo-log-allow-insert-without-treesit-p t))
   #+END_SRC
 *** Cloning the repo
 Clone the repo to a directory, say =./emacs.d/lisp= with
@@ -88,7 +75,7 @@ Then put this in your init to load the package
          ("C-s-d" . turbo-log-delete-all-logs))
   :config
   (setq turbo-log-msg-format-template "\"🚀: %s\"")
-  (setq turbo-log-allow-insert-without-tree-sitter-p t))
+  (setq turbo-log-allow-insert-without-treesit-p t))
 #+END_SRC
 
 *** For emacs version < 29
@@ -110,7 +97,7 @@ emacs versions below 29 are no longer supported, but you can still use an older 
 
 =turbo-log-argument-divider= - divider for arguments (in most case it's a comma)
 
-=turbo-log-allow-insert-without-tree-sitter-p= - allow to insert logs without tree-sitter (in such case logger will be inserted next line only, also its a necessary for modes without tree-sitter support)
+=turbo-log-allow-insert-without-treesit-p= - allow to insert logs without treesit (in such case logger will be inserted next line only, also its a necessary for modes without treesit support)
 #+END_SRC
 *** Language specific configs
 =turbo-log-loggers= - its a most interesting part of your config. You can use every settings as plist for specific logger (without =turbo-log= prefix), for example:
@@ -151,8 +138,8 @@ Where:
 + [X] C#
 + [X] Rust
 + [X] Ruby
-+ [-] Lua (Without tree-sitter)
-+ [-] Elisp (Without tree-sitter)
++ [-] Lua (Without treesit)
++ [-] Elisp (Without treesit)
 + [ ] C++
 
 ** Contributing
