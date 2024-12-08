@@ -1,11 +1,11 @@
-;;; turbo-log.el --- The simple package for fast log selected region                     -*- lexical-binding: t; -*-
+;;; turbo-log.el --- The simple package for fast log selected region        -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021 Artur Yaroshenko
 
 ;; Author: Artur Yaroshenko <artawower@protonmail.com>
 ;; URL: https://github.com/Artawower/turbo-log
-;; Package-Requires: ((emacs "25.1") (tree-sitter "0.16.1")  (s "1.12.0"))
-;; Version: 2.2.3
+;; Package-Requires: ((emacs "29") (s "1.12.0"))
+;; Version: 3.0.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@
 ;; This package provides functionality for fast line/region logging with additional meta information
 ;; like line number, buffer name, and some info from syntax table.
 ;; Out of the box it works with golang, python, js and typescript languages.
-;; This package needs the https://emacs-tree-sitter.github.io/tree-sitter-mode/
 
 
 ;;; Code:
@@ -34,7 +33,8 @@
 (require 'subr-x)
 (require 'simple)
 (require 'seq)
-(require 'tree-sitter)
+(require 'treesit)
+(require 'map)
 (require 's)
 
 (defcustom turbo-log-msg-format-template "\"TCL: %s\""
@@ -69,7 +69,7 @@ Will not be visible when its nil."
   :group 'turbo-log
   :type 'string)
 
-(defconst turbo-log--default-ecmascript-config
+(defcustom turbo-log--default-ecmascript-config
   '(:loggers ("console.log(%s)" "console.debug(%s)" "console.warn(%s)")
              :jump-list ((class_declaration
                           (:current-node-types (property_identifier)
@@ -79,8 +79,10 @@ Will not be visible when its nil."
              :identifier-formatter-rules ((property_identifier
                                            (:formatter "this.%s"
                                                        :parent-node-types (public_field_definition))))
-             :identifier-node-types (identifier member_expression property_identifier))
-  "Common configurations for ecmascript`s based modes.")
+             :identifier-node-types ("identifier" "member_expression" "property_identifier"))
+  "Common configurations for ecmascript`s based modes."
+  :group 'turbo-log
+  :type 'plist)
 
 (defconst turbo-log--identifier-node-types nil
   "List of nodes that will be printed from current line.
@@ -94,6 +96,7 @@ When not provided entire region will be printed.")
     (js3-mode ,turbo-log--default-ecmascript-config)
     (typescript-tsx-mode ,turbo-log--default-ecmascript-config)
     (typescript-ts-mode ,turbo-log--default-ecmascript-config)
+    (js-ts-mode ,turbo-log--default-ecmascript-config)
     (tsx-ts-mode ,turbo-log--default-ecmascript-config)
     (rjsx-mode ,turbo-log--default-ecmascript-config)
     (ng2-ts-mode ,turbo-log--default-ecmascript-config)
@@ -120,32 +123,36 @@ When not provided entire region will be printed.")
   :group 'turbo-log
   :type '(alist (symbol (plist :key-type symbol :value-type (alist :value-type (group string))))))
 
-(defcustom turbo-log-allow-insert-without-tree-sitter-p nil
-  "Allow insert logger when tree-sitter is disabled.
+(defcustom turbo-log-allow-insert-without-treesit-p nil
+  "Allow insert logger when treesit is disabled.
 In such case log line will be inserted next line."
   :group 'turbo-log
   :type 'boolean)
 
-(defconst turbo-log--block-statements '(block program statement_block source_file :)
+(defconst turbo-log--block-statements '("block" "program" "statement_block" "source_file" ":")
   "Nodes that indicate about new block statement.")
 
 (defconst turbo-log--top-level-structures
-  '(function class program statement_block return_statement if_statement class_declaration
-             source_file block array variable_declarator function_declaration assignment
-             function_definition short_var_declaration def arrow_function method_definition
-             expression_statement return if method_parameters)
+  '("function" "class" "program" "statement_block" "return_statement" "if_statement" "class_declaration"
+    "source_file" "block" "array" "variable_declarator" "function_declaration" "assignment"
+    "function_definition" "short_var_declaration" "def" "arrow_function" "method_definition"
+    "expression_statement" "return" "if" "method_parameters")
   "Top level structure for detecting paste place.")
 
-(defconst turbo-log--nodes-for-end-position-inserting '(array variable_declarator assignment short_var_declaration expression_statement method_parameters)
+(defconst turbo-log--nodes-for-end-position-inserting
+  '("array" "variable_declarator" "assignment" "short_var_declaration" "expression_statement" "method_parameters")
   "Node types for inserting logger after end position.")
 
-(defconst turbo-log--nodes-allowed-insert-next-line '(statement_block block arrow_function)
+(defconst turbo-log--nodes-allowed-insert-next-line
+  '("statement_block" "block" "arrow_function")
   "Node types that allow to insert logger next line.")
 
-(defconst turbo-log--nodes-allowed-insert-previous-line '(return_statement if_statement return if)
+(defconst turbo-log--nodes-allowed-insert-previous-line
+  '("return_statement" "if_statement" "return" "if")
   "Node types that allow to insert logger next line.")
 
-(defconst turbo-log--nodes-ignored '(class_declaration)
+(defconst turbo-log--nodes-ignored
+  '("class_declaration")
   "Nodes that not allowed to be inserted as logger.")
 
 (defconst turbo-log--comment-string "//"
@@ -204,7 +211,7 @@ CONFIGS - plist of configurations
 `merge' is default value.
 
 :loggers - alist of available loggers for current mode
-:jump-list - list of teleport positions from one tree-sitter node to another
+:jump-list - list of teleport positions from one treesit node to another
 where car is current node type and cdr is a plist of neighbor nodes
    :current-node-types - current node types of teleport
    :destination-node-name - node name where logger should be inserted
@@ -214,7 +221,7 @@ where car is current node type and cdr is a plist of neighbor nodes
 :identifier-formatter-rules - alist of formatters where car is node type and
 cdr is plist of:
    :formatter - string template
-   :parent-node-types - alist of tree-sitter nodes that have to be matched
+   :parent-node-types - alist of treesit nodes that have to be matched
 :identifier-node-types - node types of variables/expressions that will be
 used as output
 literal of logger
@@ -222,15 +229,15 @@ literal of logger
 :buffer-name-format-template - formatter for current buffer name
 :payload-format-template - formatter for payload
 :argument-divider - formatter for argument divider
-:block-statements - tree-sitter node types which indicate about block statement
+:block-statements - treesit node types which indicate about block statement
 :top-level-structures - top level structure that indicated about stopping of
 parsing syntax tree
-:nodes-for-end-position-inserting - tree-sitter node types that indicate current
+:nodes-for-end-position-inserting - treesit node types that indicate current
 log
 has to be inserted after end position of detected exps
-:nodes-allowed-insert-next-line - tree-sitter nodes that allow to insert logger
+:nodes-allowed-insert-next-line - treesit nodes that allow to insert logger
 next line
-:nodes-allowed-insert-previous-line - tree-sitter list of nodes that indicate
+:nodes-allowed-insert-previous-line - treesit list of nodes that indicate
 logger has to be inserted previous line
 :nodes-ignored - list of nodes which prevent auto logger inserting
 :comment-string - string for commenting current mode"
@@ -268,12 +275,12 @@ Could return function class program statement_block or nil.
 When LOGGER-CONFIG provided top-level structure will be used from plist."
 
   (let ((current-node node)
-        (current-type (tsc-node-type node))
+        (current-type (treesit-node-type node))
         (top-level-structure (turbo-log--get-logger-config logger-config top-level-structures)))
     (while (not (member current-type top-level-structure))
-      (setq current-node (tsc-get-parent current-node))
+      (setq current-node (treesit-node-parent current-node))
       (when current-node
-        (setq current-type (tsc-node-type current-node))))
+        (setq current-type (treesit-node-type current-node))))
     `(,current-node ,current-type)))
 
 (defun turbo-log--node-next-line-insert-p (node-type logger-config)
@@ -316,33 +323,20 @@ Insert LINE-NUMBER and buffer name."
   "Find next block statement from current line by PARENT-NODE.
 LOGGER-CONFIG - configuration of current logger."
 
-  (let* ((cursor (tsc-make-cursor parent-node))
-         (current-node parent-node)
-         (current-type (tsc-node-type current-node))
-         (cursor-res t)
-         (block-statement-nodes (turbo-log--get-logger-config logger-config block-statements)))
+  (when-let* ((current-node parent-node)
+              (current-type (treesit-node-type current-node))
+              (block-statement-nodes (turbo-log--get-logger-config logger-config block-statements))
+              (target-block (treesit-search-subtree current-node
+                                                    (lambda (n) (member (treesit-node-type n) block-statement-nodes)))))
 
-    (while (or (not (member current-type block-statement-nodes)) (not cursor-res))
-      (setq cursor-res (cond
-                        ((tsc-goto-next-sibling cursor) t)
-                        ((tsc-goto-first-child cursor) t)
-                        ((progn (tsc-goto-parent cursor)
-                                (tsc-goto-next-sibling cursor)) t)
-                        (t nil)))
-
-      (setq current-node (tsc-current-node cursor))
-
-      (when current-node
-        (setq current-type (tsc-node-type current-node))))
-
-    (goto-char (tsc-node-start-position current-node))
+    (goto-char (treesit-node-start target-block))
     (+ (line-number-at-pos) 1)))
 
 (defun turbo-log--node-end-position-insert-p (node-type parent-node &optional logger-config)
   "Return t when NODE-TYPE and PARENT-NODE need to be inserted at end of node.
 LOGGER-CONFIG - configuration of current logger."
   (when (member node-type (turbo-log--get-logger-config logger-config nodes-for-end-position-inserting))
-    (goto-char (tsc-node-end-position parent-node))
+    (goto-char (treesit-node-end parent-node))
     (+ (line-number-at-pos) 1)))
 
 (defun turbo-log--goto-next-word ()
@@ -350,48 +344,48 @@ LOGGER-CONFIG - configuration of current logger."
   (re-search-forward "[[:blank:]\n\(]+" nil t))
 
 (defun turbo-log--get-node-name (node)
-  "Return name of current treesitter NODE if its a named node."
-  (when (tsc-node-named-p node)
-    (buffer-substring (tsc-node-start-position node) (tsc-node-end-position node))))
+  "Return name of current treesit NODE if its a named node."
+  (when (treesit-node-field-name node)
+    (buffer-substring (treesit-node-start node) (treesit-node-end node))))
 
 (defun turbo-log--find-parent-jump-line-number (node parent-node &optional logger-config)
   "Find insert position.
 Called when jump line position for PARENT-NODE provided inside LOGGER-CONFIG.
-NODE - current node under cursor,"
-  ;; (message "TCL: [line 302][turbo-log.el] parent-node:  %s" (tsc-node-type parent-node))
+NODE - current node under cursor."
   (save-excursion
     (let* ((logger-jump-list (turbo-log--get-logger-config logger-config jump-list))
            (current-node parent-node)
-           (jump-literal-config (when logger-jump-list (assoc (tsc-node-type parent-node) logger-jump-list)))
-           (jump-literal-config (when jump-literal-config (car (cdr jump-literal-config))))
+           (jump-literal-config (when logger-jump-list (assoc (treesit-node-type parent-node) logger-jump-list)))
+           (jump-literal-config (when jump-literal-config (cdr jump-literal-config)))
 
            (matched-literals (when jump-literal-config (plist-get jump-literal-config :current-node-types)))
            (destination-names (when jump-literal-config (plist-get jump-literal-config :destination-node-names)))
            (parent-node-types (when jump-literal-config (plist-get jump-literal-config :parent-node-types)))
            insert-position
            (parent-matched (and parent-node-types
-                                (not (member (tsc-node-type (tsc-get-parent node)) parent-node-types))))
+                                (not (member (treesit-node-type (treesit-node-parent node)) parent-node-types))))
            (cursor-res (turbo-log--goto-next-word)))
 
       (goto-char (point-min))
 
       ;; (message "matched-literals: %s\nparent node: %s\ndestination names: %s\nparent-node-types: %s\nparent of parent node type %s\n"
       ;;          matched-literals
-      ;;          (tsc-node-type parent-node)
+      ;;          (treesit-node-type parent-node)
       ;;          destination-names
       ;;          parent-node-types
-      ;;          (tsc-node-type (tsc-get-parent node)))
+      ;;          (treesit-node-type (treesit-node-parent node)))
 
       (while (and (not insert-position) cursor-res logger-jump-list (not parent-matched))
-        (setq current-node (tree-sitter-node-at-pos nil (point)))
+        (setq current-node (treesit-node-at (point)))
 
-        (when (and (member (tsc-node-type current-node) matched-literals)
+        (when (and (member (treesit-node-type current-node) matched-literals)
                    (member (turbo-log--get-node-name current-node) destination-names))
-          (goto-char (tsc-node-start-position current-node))
+          (goto-char (treesit-node-start current-node))
           (setq insert-position (+ (line-number-at-pos) 1)))
 
         (setq cursor-res (turbo-log--goto-next-word)))
       insert-position)))
+
 
 (defun turbo-log--get-insert-line-number-by-node-types (node node-type parent-node &optional logger-config)
   "Return line number for insertion.
@@ -476,13 +470,14 @@ Cause evil change `point' function value by 1 inside `region-p'"
 (defun turbo-log--find-insert-line-number (logger-config)
   "Find insert position by LOGGER-CONFIG."
   (save-excursion
-    (let* ((node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+    (let* ((node (treesit-node-at (turbo-log--get-real-point)))
            (parent-node-type-pair (turbo-log--find-top-level-node node logger-config))
            (parent-node (car parent-node-type-pair))
-           (parent-node-type (car (cdr parent-node-type-pair)))
+           (parent-node-type (cadr parent-node-type-pair))
            ;; TODO: move parent node type to internal function
            (insert-line-number (turbo-log--get-insert-line-number-by-node-types node parent-node-type parent-node logger-config)))
       insert-line-number)))
+
 
 (defun turbo-log--remove-closed-bracket (line-number)
   "Remove } from end of line at LINE-NUMBER position."
@@ -540,49 +535,53 @@ FUNC - function that will accept start and end point of found log line."
         (forward-line)))))
 
 (defun turbo-log--extract-identifier-node-types (identifier-node-types divider)
-  "Extract every nodes from current line that contained by IDENTIFIER-NODE-TYPES.
+  "Extract every node from the current line.
+that is contained in IDENTIFIER-NODE-TYPES.
 Result will be a string, divided by DIVIDER."
 
   (save-excursion
     (beginning-of-line-text)
     (let* ((max-line-point (line-end-position))
-           (current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+           (current-node (treesit-node-at (turbo-log--get-real-point)))
            (cursor-res t)
            (identifiers '()))
+
 
       (while cursor-res
         ;; FIXME: navigation by ts-tree doesn't work properly
         (setq cursor-res (turbo-log--goto-next-word))
-        (setq current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
+        (setq current-node (treesit-node-at (turbo-log--get-real-point)))
 
         (when current-node
-          (when (> (tsc-node-start-position current-node) max-line-point)
+          (when (> (treesit-node-start current-node) max-line-point)
             (setq cursor-res nil))
 
-          (when (and (member (tsc-node-type current-node) identifier-node-types)
-                     (tsc-node-named-p current-node)
-                     (<= (tsc-node-start-position current-node) max-line-point))
-            (push (buffer-substring (tsc-node-start-position current-node) (tsc-node-end-position current-node)) identifiers))))
+          (when (and (member (treesit-node-type current-node) identifier-node-types)
+                     (treesit-node-p current-node)
+                     (<= (treesit-node-start current-node) max-line-point))
+            (push (buffer-substring (treesit-node-start current-node) (treesit-node-end current-node)) identifiers))))
 
       (when identifiers
         (string-join (delete-dups identifiers) divider)))))
 
+
 (defun turbo-log--try-normalize-identifiers (identifier-formatter-rules log-message)
   "Format current LOG-MESSAGE by IDENTIFIER-FORMATTER-RULES.
-IDENTIFIER-FORMATTER-RULES - is plist with next fields:
+IDENTIFIER-FORMATTER-RULES is a plist with the following fields:
 :formatter - string of formatter template
-:parent-node-types - list of tree-sitter nodes"
+:parent-node-types - list of treesit nodes"
 
-  (let* ((current-node (tree-sitter-node-at-pos nil (turbo-log--get-real-point)))
-         (node-type (tsc-node-type current-node))
-         (parent-node-type (tsc-node-type (tsc-get-parent current-node)))
-         (formatter-configs (car (cdr-safe (assoc node-type identifier-formatter-rules))))
+  (let* ((current-node (treesit-node-at (turbo-log--get-real-point)))
+         (node-type (treesit-node-type current-node))
+         (parent-node-type (treesit-node-type (treesit-node-parent current-node)))
+         (formatter-configs (cdr-safe (assoc node-type identifier-formatter-rules)))
          (formatter (plist-get formatter-configs :formatter))
          (parent-node-types (plist-get formatter-configs :parent-node-types)))
 
     (if (and formatter (or (not parent-node-types) (member parent-node-type parent-node-types)))
         (format formatter log-message)
       log-message)))
+
 
 ;;;###autoload
 (defun turbo-log-print (&optional insert-immediately-p past-from-clipboard-p)
@@ -591,11 +590,9 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?
 INSERT-IMMEDIATELY-P - should insert first available logger?"
   (interactive)
 
-  (if (or (and (bound-and-true-p tree-sitter-mode)
-               (assoc major-mode tree-sitter-major-mode-language-alist))
-          turbo-log-allow-insert-without-tree-sitter-p)
-      (let* ((tsc-allowed-p (and (bound-and-true-p tree-sitter-mode)
-                                 (assoc major-mode tree-sitter-major-mode-language-alist)))
+  (if (or (turbo-log--treesit-available-p)
+          turbo-log-allow-insert-without-treesit-p)
+      (let* ((treesit-allowed-p (turbo-log--treesit-available-p))
              (logger-config (car (cdr (assoc major-mode turbo-log-loggers))))
              (divider (turbo-log--get-logger-config logger-config argument-divider))
              (identifier-node-types (turbo-log--get-logger-config logger-config identifier-node-types))
@@ -606,15 +603,16 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
                               log-message
                             extracted-log-message))
              (identifier-formatter-rules (turbo-log--get-logger-config logger-config identifier-formatter-rules))
-             (log-message (if (and identifier-formatter-rules log-message tsc-allowed-p)
+             (log-message (if (and identifier-formatter-rules log-message treesit-allowed-p)
                               (turbo-log--try-normalize-identifiers identifier-formatter-rules log-message)
                             log-message))
              (insert-line-number (cond (past-from-clipboard-p (line-number-at-pos))
-                                       ((not (and (bound-and-true-p tree-sitter-mode)
-                                                  (assoc major-mode tree-sitter-major-mode-language-alist)))
+                                       ((not (turbo-log--treesit-available-p))
                                         (+ (line-number-at-pos) 1))
                                        (t (turbo-log--find-insert-line-number logger-config))))
              (previous-line-empty-body-p (and insert-line-number (turbo-log--line-with-empty-body-p (- insert-line-number 1)) (not past-from-clipboard-p))))
+
+        (message "Node types: %s" identifier-node-types)
 
         (unless logger-config
           (message "Turbo-log: No configuration provided for %s mode" major-mode))
@@ -622,7 +620,13 @@ INSERT-IMMEDIATELY-P - should insert first available logger?"
         (when (and insert-line-number logger-config log-message)
           (when previous-line-empty-body-p (turbo-log--remove-closed-bracket insert-line-number))
           (turbo-log--insert-logger-by-mode logger-config insert-line-number log-message insert-immediately-p previous-line-empty-body-p)))
-    (message "For turbo-log package you need to enable tree-sitter-mode.")))
+    (message "For turbo-log package you need to have installed treesit.")))
+
+(defun turbo-log--treesit-available-p ()
+  "Check is treesit available."
+  (and (fboundp 'treesit-available-p)
+       (treesit-available-p)
+       (treesit-parser-list)))
 
 ;;;###autoload
 (defun turbo-log-print-immediately ()
@@ -667,6 +671,14 @@ Optional argument PAST-FROM-CLIPBOARD-P does text inserted from clipboard?"
   (interactive)
   (turbo-log--handle-comments 'both (lambda (start-point end-point)
                                       (delete-region start-point (+ end-point 1)))))
+
+(defun turbo-log-kill-context ()
+  "Kill context for current project."
+  (interactive)
+  (let* ((project-name (turbo-log--get-project-name))
+         (context (cdr (assoc project-name turbo-log--project-context))))
+    (when context
+      (kill-new context))))
 
 (provide 'turbo-log)
 ;;; turbo-log.el ends here

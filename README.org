@@ -1,4 +1,20 @@
-[[https://github.com/Artawower/turbo-log/actions][https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg]] [[https://wakatime.com/badge/github/Artawower/turbo-log.svg]]
+:PROPERTIES:
+:ID: turbo-log-readme
+:END:
+
+#+html: <div align='center'>
+#+html: <img src="./images/image.png" width="16%">
+#+html: </div>
+#+html: <div align='center'>
+#+html: <span class='badge-buymeacoffee'>
+#+html: <a href='https://www.paypal.me/darkawower' title='Paypal' target='_blank'><img src='https://img.shields.io/badge/paypal-donate-blue.svg' alt='Buy Me A Coffee donate button' /></a>
+#+html: </span>
+#+html: <span class='badge-patreon'>
+#+html: <a href='https://patreon.com/artawower' target='_blank' title='Donate to this project using Patreon'><img src='https://img.shields.io/badge/patreon-donate-orange.svg' alt='Patreon donate button' /></a>
+#+html: </span>
+#+html: <a href="https://wakatime.com/badge/github/Artawower/turbo-log"><img src="https://wakatime.com/badge/github/Artawower/turbo-log.svg" alt="wakatime"></a>
+#+html: <a href="https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg" target="_blank"><img src="https://github.com/artawower/turbo-log/actions/workflows/lint.yml/badge.svg" alt="CI"></a>
+#+html: </div>
 
 * Turbo log - fast logging selected line or region
 This project inspired by a similar package for [[https://marketplace.visualstudio.com/items?itemName=ChakrounAnas.turbo-console-log][vs-code - turbo-console-log]], and provides functionality for fast log message inserting under current line.
@@ -75,7 +91,13 @@ Then put this in your init to load the package
   (setq turbo-log-allow-insert-without-tree-sitter-p t))
 #+END_SRC
 
-
+*** For emacs version < 29
+emacs versions below 29 are no longer supported, but you can still use an older version:
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package turbo-log
+  :defer t
+  :ensure (turbo-log :type git :host github :repo "Artawower/turbo-log.el" :branch "tree-sitter"))
+#+END_SRC
 ** Customization
 *** Common configs
 =turbo-log-msg-format-template= - template for entire part inside logger
@@ -136,3 +158,8 @@ Where:
 ** Contributing
 Any contribution is greatly appreciated!
 Run =eldev test=, =checkdoc= and =package-lint-current-buffer= (from [[https://github.com/purcell/package-lint][package-lint]] ) before creating the pull request
+
+#+BEGIN_SRC bash
+eldev prepare && eldev -p -dtT -C test
+#+END_SRC
+

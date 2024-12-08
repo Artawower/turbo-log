@@ -1,6 +1,13 @@
 ;;; test.el --- Testing for turbo log  -*- lexical-binding:t -*-
 
 (require 'turbo-log)
+(require 'treesit-auto)
+
+(setq treesit-auto-install t)
+(setq treesit-auto-langs '(python rust go typescript tsx))
+(treesit-auto-install-all)
+(treesit-auto-add-to-auto-mode-alist 'all)
+
 
 ;;; Code:
 
@@ -106,8 +113,7 @@ function myFuncWithEmptyBody(qwwe) {}")
   "Function for navigation to LINE-NUMBER and testing TEST-FUNC in new buffer."
   `(save-window-excursion
      (switch-to-buffer-other-window "*buffer-for-test*")
-     (typescript-mode)
-     (tree-sitter-mode)
+     (typescript-ts-mode)
      (transient-mark-mode)
      (setq-default typescript-indent-level 2)
      (insert ,code)
